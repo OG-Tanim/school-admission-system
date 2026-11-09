@@ -1,43 +1,38 @@
 import { useState } from 'react'
 import './App.css'
-import {
-  getApiUrl,
-  getDefaultApiUrl,
-  isValidApiUrl,
-  resetApiUrl,
-  setApiUrl,
-} from './api/config'
+import { getApiUrl, isValidApiUrl, saveApiUrl } from './api/config'
 
 function App() {
-  const [draftUrl, setDraftUrl] = useState(getApiUrl)
-  const [apiUrl, setActiveUrl] = useState(getApiUrl)
+  const apiUrl = getApiUrl()
+  const [draftUrl, setDraftUrl] = useState(apiUrl)
+  const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
 
-  const defaultUrl = getDefaultApiUrl()
-  const usingDefault = apiUrl === defaultUrl
-
-  function handleSave(event) {
+  async function handleSave(event) {
     event.preventDefault()
+
     if (!isValidApiUrl(draftUrl)) {
       setNotice('')
       setError('Enter a full http:// or https:// URL, for example http://localhost:8080.')
       return
     }
 
-    const saved = setApiUrl(draftUrl)
-    setDraftUrl(saved)
-    setActiveUrl(saved)
+    setSaving(true)
     setError('')
-    setNotice(`Requests now go to ${saved}.`)
-  }
+    setNotice('')
 
-  function handleReset() {
-    const saved = resetApiUrl()
-    setDraftUrl(saved)
-    setActiveUrl(saved)
-    setError('')
-    setNotice(`Reset to the server-provided backend URL (${saved}).`)
+    try {
+      const saved = await saveApiUrl(draftUrl)
+      setDraftUrl(saved)
+      setNotice(
+        `Saved ${saved} to the environment file. Restart the frontend container to connect to it.`,
+      )
+    } catch (saveError) {
+      setError(saveError.message)
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -57,19 +52,13 @@ function App() {
             spellCheck={false}
             autoComplete="url"
           />
-          <button type="submit">Use</button>
+          <button type="submit" disabled={saving}>
+            {saving ? 'Saving…' : 'Save'}
+          </button>
         </div>
         <p className="api-config-hint">
-          Server default: <code>{defaultUrl}</code>{' '}
-          {usingDefault ? '(in use)' : '(overridden in this browser)'}
-          {!usingDefault && (
-            <>
-              {' · '}
-              <button type="button" className="link-button" onClick={handleReset}>
-                Reset to default
-              </button>
-            </>
-          )}
+          In use: <code>{apiUrl}</code> · saved to <code>.env</code>, applied after the
+          frontend restarts.
         </p>
         {error && (
           <p className="api-config-error" role="alert">

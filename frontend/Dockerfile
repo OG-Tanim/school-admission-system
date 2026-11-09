@@ -11,16 +11,18 @@ COPY . ./
 RUN npm run build
 
 # ---------- runtime ----------
-FROM nginx:alpine AS runtime
+# A tiny Node server serves the bundle and owns /config.js, because the UI
+# writes the backend URL back into the mounted environment file.
+FROM node:24-alpine AS runtime
+WORKDIR /app
 
-# nginx reads these before starting; the script writes /config.js from API_URL.
-COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
-COPY docker/40-runtime-config.sh /docker-entrypoint.d/40-runtime-config.sh
-RUN chmod +x /docker-entrypoint.d/40-runtime-config.sh
+ENV NODE_ENV=production \
+    PORT=80 \
+    STATIC_ROOT=/app/dist \
+    CONFIG_FILE=/config/.env
 
-COPY --from=build /app/dist /usr/share/nginx/html
-
-# Keep the static files readable by the unprivileged nginx worker.
-RUN chmod -R a+rX /usr/share/nginx/html /etc/nginx/conf.d
+COPY --from=build /app/dist ./dist
+COPY server.mjs ./
 
 EXPOSE 80
+CMD ["node", "server.mjs"]

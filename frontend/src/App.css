@@ -54,6 +54,11 @@ h1 {
   cursor: pointer;
 }
 
+.api-config-row button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 .api-config-hint {
   margin: 0.5rem 0 0;
   color: #6b7280;
@@ -70,16 +75,6 @@ h1 {
   margin: 0.5rem 0 0;
   color: #047857;
   font-size: 0.9rem;
-}
-
-.link-button {
-  padding: 0;
-  border: 0;
-  background: none;
-  color: #1d4ed8;
-  font: inherit;
-  text-decoration: underline;
-  cursor: pointer;
 }
 
 .details {

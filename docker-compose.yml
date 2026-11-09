@@ -50,13 +50,24 @@ services:
     build:
       context: ./frontend
     environment:
-      # Read at container start and written into /config.js; changing it needs
-      # `docker compose up -d` (recreate), never a rebuild.
+      PORT: "80"
+      # The UI persists its backend URL here; the file wins over the fallback below.
+      CONFIG_FILE: /config/.env
       API_URL: ${API_URL:-http://localhost:8080}
+    volumes:
+      # The UI writes the chosen backend URL into this file. Restarting the
+      # frontend container is enough for it to connect to the new backend.
+      - ./.env:/config/.env
     ports:
       - "3000:80"
     depends_on:
       - backend
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/healthz || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
     restart: unless-stopped
 
 volumes:
