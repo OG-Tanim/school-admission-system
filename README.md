@@ -16,9 +16,10 @@ docker compose up --build
 | API health check | <http://localhost:8080/health> |
 
 The stack needs no local configuration: `docker-compose.yml` carries working defaults.
-Optional overrides can be placed in a root `.env` file (`API_URL`,
-`HOLD_DURATION_SECONDS`, `POSTGRES_*`); it is git-ignored. The API applies the EF Core
-migrations on startup, after waiting for PostgreSQL to accept connections.
+Optional overrides (`API_URL`, `HOLD_DURATION_SECONDS`, `POSTGRES_*`) can be placed in a
+root `.env` file — copy [.env.example](.env.example). Real `.env` files are git-ignored;
+only the template is tracked. The API applies the EF Core migrations on startup, after
+waiting for PostgreSQL to accept connections.
 
 ### Data persistence
 

@@ -14,11 +14,12 @@ node_modules/
 dist/
 *.local
 
-# Local configuration — never commit environment files
+# Local configuration — never commit real environment files
 .env
 .env.*
 *.env
 config/
+!.env.example
 
 # IDE
 .vscode/
