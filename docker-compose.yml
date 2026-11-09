@@ -1,0 +1,63 @@
+# School Admission System — one-command stack.
+#
+#   docker compose up --build
+#     frontend: http://localhost:3000
+#     backend:  http://localhost:8080
+#
+# PostgreSQL data lives in the named volume `postgres_data`, so it survives
+# `docker compose down` followed by `docker compose up`. Only
+# `docker compose down -v` deletes the volume (and the data with it).
+#
+# Optional overrides live in a root `.env` file (see `.env.example`).
+
+name: school-admission
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-school_admission}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      # The database connection is configurable through this environment variable.
+      ConnectionStrings__DefaultConnection: >-
+        Host=db;Port=5432;Database=${POSTGRES_DB:-school_admission};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres}
+      # Apply EF Core migrations on startup (waits for PostgreSQL to accept connections).
+      Database__MigrateOnStartup: "true"
+      HOLD_DURATION_SECONDS: ${HOLD_DURATION_SECONDS:-600}
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    environment:
+      # Read at container start and written into /config.js; changing it needs
+      # `docker compose up -d` (recreate), never a rebuild.
+      API_URL: ${API_URL:-http://localhost:8080}
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
