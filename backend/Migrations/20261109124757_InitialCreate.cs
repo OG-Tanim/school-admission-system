@@ -15,7 +15,7 @@ namespace SchoolAdmission.Api.Migrations
                 name: "classes",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    Id = table.Column<string>(type: "character varying(10)", maxLength: 10, nullable: false),
                     Name = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
                     TotalSeats = table.Column<int>(type: "integer", nullable: false),
                     CreatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
@@ -29,8 +29,8 @@ namespace SchoolAdmission.Api.Migrations
                 name: "holds",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    ClassId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Id = table.Column<string>(type: "character varying(10)", maxLength: 10, nullable: false),
+                    ClassId = table.Column<string>(type: "character varying(10)", maxLength: 10, nullable: false),
                     StudentId = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
                     Status = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
                     CreatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),

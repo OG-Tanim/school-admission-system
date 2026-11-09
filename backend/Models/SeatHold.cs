@@ -1,3 +1,5 @@
+using SchoolAdmission.Api.Common;
+
 namespace SchoolAdmission.Api.Models;
 
 public enum HoldStatus
@@ -10,8 +12,8 @@ public enum HoldStatus
 
 public sealed class SeatHold
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
-    public Guid ClassId { get; set; }
+    public string Id { get; set; } = ShortId.NewHoldId();
+    public string ClassId { get; set; } = string.Empty;
     public AdmissionClass AdmissionClass { get; set; } = null!;
     public string StudentId { get; set; } = string.Empty;
     public HoldStatus Status { get; set; } = HoldStatus.Held;
