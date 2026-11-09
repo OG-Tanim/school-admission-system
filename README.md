@@ -15,9 +15,10 @@ docker compose up --build
 | Backend API | <http://localhost:8080> |
 | API health check | <http://localhost:8080/health> |
 
-Defaults come from the tracked [.env](.env) file: `API_URL`, `HOLD_DURATION_SECONDS`,
-and the `POSTGRES_*` credentials. The API applies the EF Core migrations on startup,
-after waiting for PostgreSQL to accept connections.
+The stack needs no local configuration: `docker-compose.yml` carries working defaults.
+Optional overrides can be placed in a root `.env` file (`API_URL`,
+`HOLD_DURATION_SECONDS`, `POSTGRES_*`); it is git-ignored. The API applies the EF Core
+migrations on startup, after waiting for PostgreSQL to accept connections.
 
 ### Data persistence
 
@@ -30,21 +31,20 @@ you want an empty database.
 
 ### Changing the backend URL
 
-At startup the frontend reads `API_URL` from [.env](.env) (falling back to the
-container's `API_URL` environment variable) and serves it to the page as
-`/config.js`. The **Backend URL** field on the page writes the new value back into
-`.env`; the running page keeps using the URL it loaded with, so restart the frontend
-to connect to the new backend:
+The frontend keeps its backend URL in `config/api-url.env` (git-ignored, created on the
+first save). At startup the frontend server reads it — falling back to the `API_URL`
+environment variable — and serves it to the page as `/config.js`.
+
+The **Backend URL** field on the page writes the new value into that file. The running
+page keeps the URL it loaded with, so restart the frontend to connect to the new
+backend:
 
 ```bash
 docker compose restart frontend
 ```
 
 `docker compose up -d` also works — it recreates the containers and picks the value up.
-No rebuild is needed. You can equally edit `API_URL` in `.env` by hand.
-
-> The UI updates the tracked `.env` file, so `git status` will show that change after
-> saving a different URL.
+No rebuild is needed. You can equally edit `config/api-url.env` by hand.
 
 ## Run without Docker
 
@@ -68,8 +68,8 @@ npm install
 npm run dev                 # http://localhost:5173
 ```
 
-The dev server reads and writes the same root `.env` file, so the **Backend URL**
-field behaves as it does in Docker (restart `npm run dev` to apply a change).
+The dev server reads and writes the same `config/api-url.env` file, so the **Backend
+URL** field behaves as it does in Docker (restart `npm run dev` to apply a change).
 
 ## Tests
 

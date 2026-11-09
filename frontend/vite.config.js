@@ -1,8 +1,10 @@
-import { readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
-const ENV_FILE = new URL('../.env', import.meta.url)
+const ENV_FILE = fileURLToPath(new URL('../config/api-url.env', import.meta.url))
 const FALLBACK_API_URL = 'http://localhost:8080'
 const MAX_BODY_BYTES = 4096
 
@@ -119,6 +121,7 @@ function runtimeConfigPlugin() {
           lines.push(entry)
         }
 
+        await mkdir(dirname(ENV_FILE), { recursive: true })
         await writeFile(ENV_FILE, `${lines.join('\n')}\n`, 'utf8')
 
         return sendJson(res, 200, { apiUrl, restartRequired: true })

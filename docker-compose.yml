@@ -8,7 +8,7 @@
 # `docker compose down` followed by `docker compose up`. Only
 # `docker compose down -v` deletes the volume (and the data with it).
 #
-# Optional overrides live in a root `.env` file (see `.env.example`).
+# Optional overrides can be supplied in a root `.env` file (git-ignored).
 
 name: school-admission
 
@@ -52,12 +52,12 @@ services:
     environment:
       PORT: "80"
       # The UI persists its backend URL here; the file wins over the fallback below.
-      CONFIG_FILE: /config/.env
+      CONFIG_FILE: /config/api-url.env
       API_URL: ${API_URL:-http://localhost:8080}
     volumes:
-      # The UI writes the chosen backend URL into this file. Restarting the
-      # frontend container is enough for it to connect to the new backend.
-      - ./.env:/config/.env
+      # The UI writes the chosen backend URL into this git-ignored directory.
+      # Restarting the frontend container is enough to connect to the new backend.
+      - ./config:/config
     ports:
       - "3000:80"
     depends_on:

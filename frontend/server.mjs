@@ -1,10 +1,10 @@
 import { createServer } from 'node:http'
-import { readFile, writeFile } from 'node:fs/promises'
-import { extname, resolve, sep } from 'node:path'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { dirname, extname, resolve, sep } from 'node:path'
 
 const PORT = Number(process.env.PORT ?? 80)
 const STATIC_ROOT = resolve(process.env.STATIC_ROOT ?? '/app/dist')
-const CONFIG_FILE = process.env.CONFIG_FILE ?? '/config/.env'
+const CONFIG_FILE = process.env.CONFIG_FILE ?? '/config/api-url.env'
 const FALLBACK_API_URL = 'http://localhost:8080'
 const MAX_BODY_BYTES = 4096
 
@@ -78,6 +78,7 @@ async function saveApiUrl(apiUrl) {
     lines.push(entry)
   }
 
+  await mkdir(dirname(CONFIG_FILE), { recursive: true })
   await writeFile(CONFIG_FILE, `${lines.join('\n')}\n`, 'utf8')
 }
 
