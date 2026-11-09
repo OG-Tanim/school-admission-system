@@ -1,0 +1,52 @@
+.app {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 4rem 1.5rem;
+}
+
+h1 {
+  margin: 0 0 0.5rem;
+  font-size: 2rem;
+  letter-spacing: -0.02em;
+}
+
+.tagline {
+  margin: 0 0 2rem;
+  color: #4b5563;
+}
+
+.details {
+  display: grid;
+  gap: 1rem;
+  margin: 0 0 2rem;
+}
+
+.details div {
+  padding: 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+dt {
+  color: #6b7280;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+dd {
+  margin: 0.25rem 0 0;
+  font-weight: 600;
+}
+
+code {
+  padding: 0.15rem 0.35rem;
+  border-radius: 4px;
+  background: #f3f4f6;
+  font-size: 0.9em;
+}
+
+.next {
+  margin: 0;
+  color: #6b7280;
+}
