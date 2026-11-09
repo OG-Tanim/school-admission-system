@@ -1,38 +1,56 @@
 import { useState } from 'react'
 import './App.css'
-import { getApiUrl, isValidApiUrl, saveApiUrl } from './api/config'
+import { getStartupApiUrl, isValidApiUrl, resetApiUrl, setApiUrl } from './api/config'
+import { useBackendUrl } from './hooks/useBackendUrl'
+
+const startupApiUrl = getStartupApiUrl()
 
 function App() {
-  const apiUrl = getApiUrl()
-  const [draftUrl, setDraftUrl] = useState(apiUrl)
-  const [saving, setSaving] = useState(false)
+  const activeUrl = useBackendUrl()
+  const [draftUrl, setDraftUrl] = useState(activeUrl)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
 
-  async function handleSave(event) {
+  const isOverridden = activeUrl !== startupApiUrl
+
+  function handleSave(event) {
     event.preventDefault()
 
-    if (!isValidApiUrl(draftUrl)) {
+    const trimmed = draftUrl.trim()
+    if (!trimmed) {
       setNotice('')
-      setError('Enter a full http:// or https:// URL, for example http://localhost:8080.')
+      setError('Please enter the backend URL.')
       return
     }
 
-    setSaving(true)
-    setError('')
-    setNotice('')
+    if (!isValidApiUrl(trimmed)) {
+      setNotice('')
+      setError(
+        'Enter a full URL starting with http:// or https://, for example http://localhost:8080.',
+      )
+      return
+    }
 
     try {
-      const saved = await saveApiUrl(draftUrl)
+      const saved = setApiUrl(trimmed)
       setDraftUrl(saved)
+      setError('')
       setNotice(
-        `Saved ${saved} to the environment file. Restart the frontend container to connect to it.`,
+        saved === startupApiUrl
+          ? `Now routing requests to ${saved}, which matches the environment default.`
+          : `Backend URL changed to ${saved}. It applies immediately and is saved in this browser for next time.`,
       )
     } catch (saveError) {
+      setNotice('')
       setError(saveError.message)
-    } finally {
-      setSaving(false)
     }
+  }
+
+  function handleReset() {
+    const restored = resetApiUrl()
+    setDraftUrl(restored)
+    setError('')
+    setNotice(`Backend URL reset to the environment default: ${restored}.`)
   }
 
   return (
@@ -49,17 +67,25 @@ function App() {
             inputMode="url"
             value={draftUrl}
             onChange={(event) => setDraftUrl(event.target.value)}
+            placeholder="http://localhost:8080"
             spellCheck={false}
             autoComplete="url"
           />
-          <button type="submit" disabled={saving}>
-            {saving ? 'Saving…' : 'Save'}
-          </button>
+          <button type="submit">Apply</button>
         </div>
         <p className="api-config-hint">
-          In use: <code>{apiUrl}</code> · saved to <code>.env</code>, applied after the
-          frontend restarts.
+          In use: <code>{activeUrl}</code> · environment default:{' '}
+          <code>{startupApiUrl}</code>
         </p>
+        {isOverridden && (
+          <p className="api-config-hint">
+            This is a personal override stored in this browser; it does not change the
+            environment file or anyone else&apos;s session.{' '}
+            <button type="button" className="link-button" onClick={handleReset}>
+              Reset to default
+            </button>
+          </p>
+        )}
         {error && (
           <p className="api-config-error" role="alert">
             {error}
@@ -84,7 +110,7 @@ function App() {
         <div>
           <dt>API URL</dt>
           <dd>
-            <code>{apiUrl}</code>
+            <code>{activeUrl}</code>
           </dd>
         </div>
       </dl>

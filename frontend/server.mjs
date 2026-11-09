@@ -1,12 +1,11 @@
 import { createServer } from 'node:http'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { dirname, extname, resolve, sep } from 'node:path'
+import { readFile } from 'node:fs/promises'
+import { extname, resolve, sep } from 'node:path'
 
 const PORT = Number(process.env.PORT ?? 80)
 const STATIC_ROOT = resolve(process.env.STATIC_ROOT ?? '/app/dist')
 const CONFIG_FILE = process.env.CONFIG_FILE ?? '/config/api-url.env'
 const FALLBACK_API_URL = 'http://localhost:8080'
-const MAX_BODY_BYTES = 4096
 
 const CONTENT_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -46,9 +45,10 @@ function apiUrlFromEnvFile(contents) {
   return ''
 }
 
-// The environment file is the source of truth, so editing it and restarting
-// the container is enough to point the UI at another backend.
-async function loadApiUrl() {
+// Startup value: the environment file is the source of truth for every start.
+// A user may override it in their own browser, but the browser never writes
+// this file back.
+async function loadStartupApiUrl() {
   try {
     const fromFile = apiUrlFromEnvFile(await readFile(CONFIG_FILE, 'utf8'))
     if (isValidApiUrl(fromFile)) return fromFile
@@ -58,28 +58,6 @@ async function loadApiUrl() {
 
   const fromEnv = normalizeApiUrl(process.env.API_URL)
   return isValidApiUrl(fromEnv) ? fromEnv : FALLBACK_API_URL
-}
-
-async function saveApiUrl(apiUrl) {
-  let contents = ''
-  try {
-    contents = await readFile(CONFIG_FILE, 'utf8')
-  } catch {
-    // Create the file below.
-  }
-
-  const lines = contents.length ? contents.replace(/\s+$/, '').split(/\r?\n/) : []
-  const entry = `API_URL=${apiUrl}`
-  const index = lines.findIndex((line) => line.trim().startsWith('API_URL='))
-
-  if (index >= 0) {
-    lines[index] = entry
-  } else {
-    lines.push(entry)
-  }
-
-  await mkdir(dirname(CONFIG_FILE), { recursive: true })
-  await writeFile(CONFIG_FILE, `${lines.join('\n')}\n`, 'utf8')
 }
 
 function send(res, status, body, contentType, cacheControl, headOnly = false) {
@@ -94,33 +72,6 @@ function send(res, status, body, contentType, cacheControl, headOnly = false) {
 
 function sendJson(res, status, payload) {
   send(res, status, `${JSON.stringify(payload)}\n`, 'application/json; charset=utf-8', 'no-store')
-}
-
-function readJson(req) {
-  return new Promise((resolvePromise, reject) => {
-    let size = 0
-    const chunks = []
-
-    req.on('data', (chunk) => {
-      size += chunk.length
-      if (size > MAX_BODY_BYTES) {
-        reject(new Error('Request body is too large.'))
-        req.destroy()
-        return
-      }
-      chunks.push(chunk)
-    })
-
-    req.on('end', () => {
-      try {
-        resolvePromise(JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}'))
-      } catch {
-        reject(new Error('Request body must be valid JSON.'))
-      }
-    })
-
-    req.on('error', reject)
-  })
 }
 
 function contentTypeFor(filePath) {
@@ -169,7 +120,7 @@ async function serveStatic(req, res, url) {
   return send(res, 404, 'Not found\n', 'text/plain; charset=utf-8', 'no-store', headOnly)
 }
 
-const startupApiUrl = await loadApiUrl()
+const startupApiUrl = await loadStartupApiUrl()
 
 const server = createServer(async (req, res) => {
   try {
@@ -180,6 +131,7 @@ const server = createServer(async (req, res) => {
     }
 
     if (url.pathname === '/config.js') {
+      // Default only. Every user may override this in their own browser.
       const body = `window.__APP_CONFIG__ = ${JSON.stringify({ apiUrl: startupApiUrl })};\n`
       return send(
         res,
@@ -189,35 +141,6 @@ const server = createServer(async (req, res) => {
         'no-store',
         req.method === 'HEAD',
       )
-    }
-
-    if (url.pathname === '/api-url') {
-      if (req.method !== 'PUT') {
-        return sendJson(res, 405, { error: 'Use PUT to save the backend URL.' })
-      }
-
-      let payload
-      try {
-        payload = await readJson(req)
-      } catch (error) {
-        return sendJson(res, 400, { error: error.message })
-      }
-
-      const requested = normalizeApiUrl(payload?.apiUrl)
-      if (!isValidApiUrl(requested)) {
-        return sendJson(res, 400, { error: 'Enter a valid http:// or https:// URL.' })
-      }
-
-      try {
-        await saveApiUrl(requested)
-      } catch (error) {
-        console.error('Could not write the environment file:', error)
-        return sendJson(res, 500, {
-          error: 'The backend URL could not be saved to the environment file.',
-        })
-      }
-
-      return sendJson(res, 200, { apiUrl: requested, restartRequired: true })
     }
 
     if (req.method !== 'GET' && req.method !== 'HEAD') {
@@ -232,5 +155,5 @@ const server = createServer(async (req, res) => {
 })
 
 server.listen(PORT, () => {
-  console.log(`Frontend on :${PORT} — API ${startupApiUrl} (config: ${CONFIG_FILE})`)
+  console.log(`Frontend on :${PORT} — API default ${startupApiUrl} (config: ${CONFIG_FILE})`)
 })

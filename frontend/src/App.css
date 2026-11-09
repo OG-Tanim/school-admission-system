@@ -108,6 +108,16 @@ code {
   font-size: 0.9em;
 }
 
+.link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #1d4ed8;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .next {
   margin: 0;
   color: #6b7280;

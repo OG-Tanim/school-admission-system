@@ -32,20 +32,20 @@ you want an empty database.
 
 ### Changing the backend URL
 
-The frontend keeps its backend URL in `config/api-url.env` (git-ignored, created on the
-first save). At startup the frontend server reads it — falling back to the `API_URL`
-environment variable — and serves it to the page as `/config.js`.
+The default backend URL comes from `config/api-url.env` when that file exists, and from
+the `API_URL` environment variable otherwise. At startup the frontend server reads it
+and serves it to the page as `/config.js`. The file is mounted read-only into the
+container and is never written by the app.
 
-The **Backend URL** field on the page writes the new value into that file. The running
-page keeps the URL it loaded with, so restart the frontend to connect to the new
-backend:
+The **Backend URL** field on the page overrides that default for the current browser
+only:
 
-```bash
-docker compose restart frontend
-```
-
-`docker compose up -d` also works — it recreates the containers and picks the value up.
-No rebuild is needed. You can equally edit `config/api-url.env` by hand.
+- The new value applies immediately to the next request — no page reload and no
+  container restart.
+- It is stored in the browser's `localStorage`, so it survives a refresh or a reopened
+  tab.
+- Other users and `config/api-url.env` are unaffected. **Reset to default** returns to
+  the environment value.
 
 ## Run without Docker
 
@@ -69,8 +69,9 @@ npm install
 npm run dev                 # http://localhost:5173
 ```
 
-The dev server reads and writes the same `config/api-url.env` file, so the **Backend
-URL** field behaves as it does in Docker (restart `npm run dev` to apply a change).
+The dev server reads the same `config/api-url.env` file (falling back to the `API_URL`
+environment variable) and serves it as the default. The **Backend URL** field behaves as
+it does in Docker and applies immediately without restarting `npm run dev`.
 
 ## Tests
 

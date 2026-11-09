@@ -1,4 +1,5 @@
 const FALLBACK_API_URL = 'http://localhost:8080'
+const STORAGE_KEY = 'backendUrl'
 
 export function normalizeApiUrl(value) {
   return String(value ?? '')
@@ -15,31 +16,72 @@ export function isValidApiUrl(value) {
   }
 }
 
-// The page loads the URL the frontend server read from the environment when it
-// started. Changing it takes a frontend restart, so this value stays fixed for
-// the lifetime of the page.
-export function getApiUrl() {
-  return normalizeApiUrl(window.__APP_CONFIG__?.apiUrl) || FALLBACK_API_URL
+// The value the frontend server read from the environment file at startup. It
+// is the default every user starts from; the UI never writes it back.
+const startupApiUrl = normalizeApiUrl(window.__APP_CONFIG__?.apiUrl) || FALLBACK_API_URL
+
+function readStoredOverride() {
+  try {
+    const stored = normalizeApiUrl(localStorage.getItem(STORAGE_KEY))
+    return stored && isValidApiUrl(stored) ? stored : null
+  } catch {
+    // localStorage can be unavailable (private mode, disabled storage).
+    return null
+  }
 }
 
-// Persists the choice into the environment file. The server keeps using its
-// startup value until it is restarted.
-export async function saveApiUrl(value) {
+// The URL every request uses right now. Any override lives in this browser
+// only, so one user changing it never affects another user or the container.
+let activeApiUrl = readStoredOverride() ?? startupApiUrl
+const listeners = new Set()
+
+export function getStartupApiUrl() {
+  return startupApiUrl
+}
+
+export function getApiUrl() {
+  return activeApiUrl
+}
+
+function notify() {
+  for (const listener of listeners) {
+    listener()
+  }
+}
+
+export function setApiUrl(value) {
   const apiUrl = normalizeApiUrl(value)
   if (!isValidApiUrl(apiUrl)) {
-    throw new Error('Enter a full http:// or https:// URL, for example http://localhost:8080.')
+    throw new Error(
+      'Enter a full URL starting with http:// or https://, for example http://localhost:8080.',
+    )
   }
 
-  const response = await fetch('/api-url', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ apiUrl }),
-  })
-
-  const payload = await response.json().catch(() => ({}))
-  if (!response.ok) {
-    throw new Error(payload.error ?? `The URL could not be saved (HTTP ${response.status}).`)
+  activeApiUrl = apiUrl
+  try {
+    localStorage.setItem(STORAGE_KEY, apiUrl)
+  } catch {
+    // Persisting is best-effort; the change still applies to this page.
   }
 
-  return payload.apiUrl ?? apiUrl
+  notify()
+  return apiUrl
+}
+
+export function resetApiUrl() {
+  activeApiUrl = startupApiUrl
+  try {
+    localStorage.removeItem(STORAGE_KEY)
+  } catch {
+    // Ignore storage failures; the reset still applies to this page.
+  }
+
+  notify()
+  return startupApiUrl
+}
+
+// Lets React re-read the URL whenever it changes, without a page reload.
+export function subscribe(listener) {
+  listeners.add(listener)
+  return () => listeners.delete(listener)
 }

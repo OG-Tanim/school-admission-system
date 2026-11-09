@@ -1,12 +1,10 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { dirname } from 'node:path'
+import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
 const ENV_FILE = fileURLToPath(new URL('../config/api-url.env', import.meta.url))
 const FALLBACK_API_URL = 'http://localhost:8080'
-const MAX_BODY_BYTES = 4096
 
 function normalizeApiUrl(value) {
   return String(value ?? '')
@@ -32,99 +30,32 @@ function apiUrlFromEnvFile(contents) {
   return ''
 }
 
-function readJson(req) {
-  return new Promise((resolvePromise, reject) => {
-    let size = 0
-    const chunks = []
+// Read once when the dev server starts. The environment file is the default;
+// per-user overrides live in the browser and are never written back here.
+function startupApiUrl() {
+  try {
+    const fromFile = apiUrlFromEnvFile(readFileSync(ENV_FILE, 'utf8'))
+    if (isValidApiUrl(fromFile)) return fromFile
+  } catch {
+    // No environment file yet; use the fallback below.
+  }
 
-    req.on('data', (chunk) => {
-      size += chunk.length
-      if (size > MAX_BODY_BYTES) {
-        reject(new Error('Request body is too large.'))
-        req.destroy()
-        return
-      }
-      chunks.push(chunk)
-    })
-
-    req.on('end', () => {
-      try {
-        resolvePromise(JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}'))
-      } catch {
-        reject(new Error('Request body must be valid JSON.'))
-      }
-    })
-
-    req.on('error', reject)
-  })
+  return FALLBACK_API_URL
 }
 
-function sendJson(res, status, payload) {
-  res.statusCode = status
-  res.setHeader('Content-Type', 'application/json; charset=utf-8')
-  res.setHeader('Cache-Control', 'no-store')
-  res.end(`${JSON.stringify(payload)}\n`)
-}
-
-// Mirrors the production container: /config.js comes from the environment
-// file, and /api-url writes a new backend URL back into it.
+// Mirrors the production container: /config.js serves the default URL read from
+// the environment file at startup. A user's override is applied in the browser
+// and never touches this server.
 function runtimeConfigPlugin() {
+  const bootApiUrl = startupApiUrl()
+
   return {
     name: 'school-admission:runtime-config',
     configureServer(server) {
-      server.middlewares.use('/config.js', async (req, res) => {
-        let apiUrl = FALLBACK_API_URL
-
-        try {
-          const fromFile = apiUrlFromEnvFile(await readFile(ENV_FILE, 'utf8'))
-          if (isValidApiUrl(fromFile)) apiUrl = fromFile
-        } catch {
-          // No .env yet; keep the fallback.
-        }
-
+      server.middlewares.use('/config.js', (req, res) => {
         res.setHeader('Content-Type', 'text/javascript; charset=utf-8')
         res.setHeader('Cache-Control', 'no-store')
-        res.end(`window.__APP_CONFIG__ = ${JSON.stringify({ apiUrl })};\n`)
-      })
-
-      server.middlewares.use('/api-url', async (req, res) => {
-        if (req.method !== 'PUT') {
-          return sendJson(res, 405, { error: 'Use PUT to save the backend URL.' })
-        }
-
-        let payload
-        try {
-          payload = await readJson(req)
-        } catch (error) {
-          return sendJson(res, 400, { error: error.message })
-        }
-
-        const apiUrl = normalizeApiUrl(payload?.apiUrl)
-        if (!isValidApiUrl(apiUrl)) {
-          return sendJson(res, 400, { error: 'Enter a valid http:// or https:// URL.' })
-        }
-
-        let contents = ''
-        try {
-          contents = await readFile(ENV_FILE, 'utf8')
-        } catch {
-          // Create the file below.
-        }
-
-        const lines = contents.length ? contents.replace(/\s+$/, '').split(/\r?\n/) : []
-        const entry = `API_URL=${apiUrl}`
-        const index = lines.findIndex((line) => line.trim().startsWith('API_URL='))
-
-        if (index >= 0) {
-          lines[index] = entry
-        } else {
-          lines.push(entry)
-        }
-
-        await mkdir(dirname(ENV_FILE), { recursive: true })
-        await writeFile(ENV_FILE, `${lines.join('\n')}\n`, 'utf8')
-
-        return sendJson(res, 200, { apiUrl, restartRequired: true })
+        res.end(`window.__APP_CONFIG__ = ${JSON.stringify({ apiUrl: bootApiUrl })};\n`)
       })
     },
   }
