@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ApiError, cancelHold, confirmHold, getHold } from '../api/client'
+import { ApiError, cancelHold, confirmHold, getClass, getHold } from '../api/client'
 import type { HoldStatus } from '../api/types'
 import { useCountdown } from '../hooks/useCountdown'
 import { ErrorBanner } from './ErrorBanner'
@@ -8,19 +8,23 @@ export interface ApplicationViewProps {
   holdId: string
   className?: string
   studentId: string
+  identityValid?: boolean
   onBack: () => void
-  onHoldChanged: () => void
+  onHoldChanged?: () => void
 }
 
 export function ApplicationView({
   holdId,
   className,
   studentId,
+  identityValid = true,
   onBack,
   onHoldChanged,
 }: ApplicationViewProps) {
   const [status, setStatus] = useState<HoldStatus | null>(null)
   const [expiresAt, setExpiresAt] = useState<string | null>(null)
+  const [classId, setClassId] = useState<string | null>(null)
+  const [resolvedClassName, setResolvedClassName] = useState<string | undefined>(className)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [pending, setPending] = useState<'confirm' | 'cancel' | null>(null)
@@ -30,6 +34,7 @@ export function ApplicationView({
       const next = await getHold(holdId)
       setStatus(next.status)
       setExpiresAt(next.expiresAt)
+      setClassId(next.classId)
       setError('')
     } catch (loadError) {
       setError(
@@ -45,6 +50,29 @@ export function ApplicationView({
     // oxlint-disable-next-line react/set-state-in-effect
     void load()
   }, [load])
+
+  // A deep link or refresh does not carry the class name, so resolve it once
+  // from the class id. The name is cosmetic, so a failure here is ignored.
+  useEffect(() => {
+    if (resolvedClassName || classId === null) {
+      return
+    }
+
+    let cancelled = false
+    getClass(classId)
+      .then((detail) => {
+        if (!cancelled) {
+          setResolvedClassName(detail.name)
+        }
+      })
+      .catch(() => {
+        // Keep the generic "Class" label.
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [classId, resolvedClassName])
 
   const countdown = useCountdown(status === 'HELD' ? expiresAt : null)
   const effectiveStatus: HoldStatus | null =
@@ -62,7 +90,7 @@ export function ApplicationView({
         await cancelHold(holdId, studentId)
         setStatus('CANCELLED')
       }
-      onHoldChanged()
+      onHoldChanged?.()
     } catch (settleError) {
       const message =
         settleError instanceof Error ? settleError.message : 'The request failed.'
@@ -117,7 +145,7 @@ export function ApplicationView({
     )
   }
 
-  const canAct = status === 'HELD' && !countdown.expired && pending === null
+  const canAct = status === 'HELD' && !countdown.expired && pending === null && identityValid
 
   return (
     <section className="view" aria-label="Application">
@@ -128,7 +156,7 @@ export function ApplicationView({
         </button>
       </div>
 
-      <p className="hold-class">{className ?? 'Class'}</p>
+      <p className="hold-class">{resolvedClassName ?? 'Class'}</p>
       <p>
         Status:{' '}
         <span className={`status status-${(effectiveStatus ?? 'HELD').toLowerCase()}`}>
@@ -138,6 +166,13 @@ export function ApplicationView({
 
       {status === 'HELD' && !countdown.expired && (
         <p>Time remaining: {countdown.label}</p>
+      )}
+
+      {!identityValid && (
+        <p className="hint">
+          Enter your 17-digit birth-registration number on the student screen to pay or
+          cancel.
+        </p>
       )}
 
       {error && <ErrorBanner message={error} />}

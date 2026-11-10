@@ -9,6 +9,7 @@ import { renderApp } from './test/renderApp'
 const STUDENT_ID = '12345678901234567'
 const CLASS_ID = 'class-1'
 const HOLD_ID = 'hold-1'
+const UNREACHABLE = 'The server is not reachable. Check the backend URL and try again.'
 
 const CLASS_SUMMARY = {
   id: CLASS_ID,
@@ -36,16 +37,83 @@ function routesApi(routes: Record<string, MockResult>) {
   })
 }
 
-async function openApplication(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole('tab', { name: 'My Applications' }))
-  await user.click(await screen.findByRole('button', { name: /Class 6/ }))
-  expect(await screen.findByRole('heading', { name: 'Application' })).toBeInTheDocument()
+function applicationRoute(className = 'Class 6'): string {
+  return `/application/${HOLD_ID}?class=${encodeURIComponent(className)}`
 }
 
-describe('Class list', () => {
-  it('shows the seat counts and disables Apply without a student id', async () => {
+describe('Role chooser', () => {
+  it('starts on the role chooser with both roles and the backend URL', async () => {
+    renderApp('/')
+
+    expect(await screen.findByRole('button', { name: /School admin/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Student \/ guardian/ })).toBeInTheDocument()
+    expect(screen.getByLabelText('Backend URL')).toBeInTheDocument()
+  })
+
+  it('opens the student screen when the student role is chosen', async () => {
+    routesApi({ 'GET /classes': { status: 200, body: [] } })
+    const user = userEvent.setup()
+    renderApp('/')
+
+    await user.click(await screen.findByRole('button', { name: /Student \/ guardian/ }))
+
+    expect(await screen.findByLabelText(/birth-registration number/i)).toBeInTheDocument()
+    expect(await screen.findByText('No classes have been created yet.')).toBeInTheDocument()
+  })
+})
+
+describe('Admin', () => {
+  it('shows the classes already created without an Apply button', async () => {
     routesApi({ 'GET /classes': { status: 200, body: [CLASS_SUMMARY] } })
-    renderApp()
+    renderApp('/admin')
+
+    const row = await screen.findByRole('row', { name: /Class 6/ })
+    const cells = within(row)
+      .getAllByRole('cell')
+      .map((cell) => cell.textContent)
+
+    expect(cells).toEqual(['Class 6', '10', '1', '2', '7'])
+    expect(within(row).queryByRole('button')).not.toBeInTheDocument()
+  })
+
+  it('creates a class and refreshes the list below the form', async () => {
+    let created = false
+    const { calls } = installFetchMock((call) => {
+      if (call.method === 'POST' && call.path === '/classes') {
+        created = true
+        return { status: 201, body: { id: 'class-9', name: 'Class 9', totalSeats: 40 } }
+      }
+      if (call.method === 'GET' && call.path === '/classes') {
+        return {
+          status: 200,
+          body: created
+            ? [
+                CLASS_SUMMARY,
+                { id: 'class-9', name: 'Class 9', totalSeats: 40, heldSeats: 0, confirmedSeats: 0, availableSeats: 40 },
+              ]
+            : [CLASS_SUMMARY],
+        }
+      }
+      throw new Error(`Unexpected request: ${call.method} ${call.path}`)
+    })
+
+    const user = userEvent.setup()
+    renderApp('/admin')
+
+    await user.type(await screen.findByLabelText('Class name'), 'Class 9')
+    await user.type(screen.getByLabelText('Total seats'), '40')
+    await user.click(screen.getByRole('button', { name: 'Create class' }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent('Class created: Class 9')
+    expect(findCall(calls, 'POST', '/classes')?.body).toEqual({ name: 'Class 9', totalSeats: 40 })
+    expect(await screen.findByRole('row', { name: /Class 9/ })).toBeInTheDocument()
+  })
+})
+
+describe('Student', () => {
+  it('shows the seat counts and disables Apply without a birth-registration number', async () => {
+    routesApi({ 'GET /classes': { status: 200, body: [CLASS_SUMMARY] } })
+    renderApp('/student')
 
     const row = await screen.findByRole('row', { name: /Class 6/ })
     const cells = within(row)
@@ -59,19 +127,7 @@ describe('Class list', () => {
     ).toBeInTheDocument()
   })
 
-  it('disables Apply when no seats are available', async () => {
-    localStorage.setItem('studentId', STUDENT_ID)
-    routesApi({
-      'GET /classes': { status: 200, body: [{ ...CLASS_SUMMARY, availableSeats: 0 }] },
-      'GET /me/holds': { status: 200, body: [] },
-    })
-    renderApp()
-
-    const row = await screen.findByRole('row', { name: /Class 6/ })
-    expect(within(row).getByRole('button', { name: 'Apply' })).toBeDisabled()
-  })
-
-  it('opens the application with the new hold when Apply is clicked', async () => {
+  it('applies for a seat and opens the application', async () => {
     localStorage.setItem('studentId', STUDENT_ID)
     const created = {
       holdId: HOLD_ID,
@@ -82,12 +138,12 @@ describe('Class list', () => {
     }
     const { calls } = routesApi({
       'GET /classes': { status: 200, body: [CLASS_SUMMARY] },
-      'GET /me/holds': { status: 200, body: [] },
       [`POST /classes/${CLASS_ID}/holds`]: { status: 201, body: created },
       [`GET /holds/${HOLD_ID}`]: { status: 200, body: created },
     })
+
     const user = userEvent.setup()
-    renderApp()
+    renderApp('/student')
 
     const table = await screen.findByRole('table')
     await user.click(within(table).getByRole('button', { name: 'Apply' }))
@@ -105,19 +161,11 @@ describe('Application', () => {
   it('shows EXPIRED and disables Pay when the hold has already expired', async () => {
     localStorage.setItem('studentId', STUDENT_ID)
     const expiredAt = new Date(Date.now() - 60_000).toISOString()
-    const expiredHold = { ...HELD_HOLD, expiresAt: expiredAt }
     routesApi({
-      'GET /classes': { status: 200, body: [CLASS_SUMMARY] },
-      'GET /me/holds': {
-        status: 200,
-        body: [{ ...expiredHold, className: 'Class 6' }],
-      },
-      [`GET /holds/${HOLD_ID}`]: { status: 200, body: expiredHold },
+      [`GET /holds/${HOLD_ID}`]: { status: 200, body: { ...HELD_HOLD, expiresAt: expiredAt } },
     })
-    const user = userEvent.setup()
-    renderApp()
 
-    await openApplication(user)
+    renderApp(applicationRoute())
 
     expect(await screen.findByText('EXPIRED')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Pay Admission Fee' })).toBeDisabled()
@@ -128,19 +176,16 @@ describe('Application', () => {
     localStorage.setItem('studentId', STUDENT_ID)
     const activeHold = { ...HELD_HOLD, expiresAt: inMinutes(10) }
     const { calls } = routesApi({
-      'GET /classes': { status: 200, body: [CLASS_SUMMARY] },
-      'GET /me/holds': { status: 200, body: [{ ...activeHold, className: 'Class 6' }] },
       [`GET /holds/${HOLD_ID}`]: { status: 200, body: activeHold },
       [`POST /holds/${HOLD_ID}/confirm`]: {
         status: 200,
         body: { holdId: HOLD_ID, status: 'CONFIRMED' },
       },
     })
-    const user = userEvent.setup()
-    renderApp()
 
-    await openApplication(user)
-    await user.click(screen.getByRole('button', { name: 'Pay Admission Fee' }))
+    const user = userEvent.setup()
+    renderApp(applicationRoute())
+    await user.click(await screen.findByRole('button', { name: 'Pay Admission Fee' }))
 
     expect(await screen.findByText('CONFIRMED')).toBeInTheDocument()
     expect(screen.getByText('Admission confirmed.')).toBeInTheDocument()
@@ -154,16 +199,13 @@ describe('Application', () => {
     localStorage.setItem('studentId', STUDENT_ID)
     const activeHold = { ...HELD_HOLD, expiresAt: inMinutes(10) }
     const { calls } = routesApi({
-      'GET /classes': { status: 200, body: [CLASS_SUMMARY] },
-      'GET /me/holds': { status: 200, body: [{ ...activeHold, className: 'Class 6' }] },
       [`GET /holds/${HOLD_ID}`]: { status: 200, body: activeHold },
       [`DELETE /holds/${HOLD_ID}`]: { status: 204 },
     })
-    const user = userEvent.setup()
-    renderApp()
 
-    await openApplication(user)
-    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    const user = userEvent.setup()
+    renderApp(applicationRoute())
+    await user.click(await screen.findByRole('button', { name: 'Cancel' }))
 
     expect(await screen.findByText('CANCELLED')).toBeInTheDocument()
     expect(screen.getByText('Application cancelled.')).toBeInTheDocument()
@@ -173,43 +215,34 @@ describe('Application', () => {
   })
 })
 
-describe('Identity and errors', () => {
-  it('loads the stored identity holds with the X-Student-Id header', async () => {
+describe('My applications', () => {
+  it('lists the stored identity applications with the X-Student-Id header', async () => {
     localStorage.setItem('studentId', STUDENT_ID)
-    const activeHold = { ...HELD_HOLD, expiresAt: inMinutes(10) }
+    const activeHold = { ...HELD_HOLD, className: 'Class 6', expiresAt: inMinutes(10) }
     const { calls } = routesApi({
-      'GET /classes': { status: 200, body: [CLASS_SUMMARY] },
-      'GET /me/holds': { status: 200, body: [{ ...activeHold, className: 'Class 6' }] },
+      'GET /me/holds': { status: 200, body: [activeHold] },
     })
-    const user = userEvent.setup()
-    renderApp()
 
-    await user.click(screen.getByRole('tab', { name: 'My Applications' }))
+    renderApp('/student/applications')
 
     expect(await screen.findByRole('button', { name: /Class 6/ })).toBeInTheDocument()
     expect(findCall(calls, 'GET', '/me/holds')?.headers['X-Student-Id']).toBe(STUDENT_ID)
   })
+})
 
-  it('shows a readable banner on every screen when the server is unreachable', async () => {
-    localStorage.setItem('studentId', STUDENT_ID)
+describe('Errors', () => {
+  it('shows a readable banner when the server is unreachable', async () => {
     installFetchMock(() => {
       throw new TypeError('Failed to fetch')
     })
     const user = userEvent.setup()
-    renderApp()
+    renderApp('/student')
 
-    const unreachable = 'The server is not reachable. Check the backend URL and try again.'
+    expect(await screen.findByRole('alert')).toHaveTextContent(UNREACHABLE)
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(unreachable)
-
-    await user.click(screen.getByRole('tab', { name: 'Create Class' }))
-    await user.type(screen.getByLabelText('Class name'), 'Class 9')
-    await user.type(screen.getByLabelText('Total seats'), '40')
-    await user.click(screen.getByRole('button', { name: 'Create class' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent(unreachable)
-
-    await user.click(screen.getByRole('tab', { name: 'My Applications' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent(unreachable)
+    await user.click(screen.getByRole('button', { name: 'Home / change role' }))
+    await user.click(await screen.findByRole('button', { name: /School admin/ }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(UNREACHABLE)
 
     expect(
       screen.getByRole('heading', { name: 'School Admission System' }),
@@ -227,7 +260,7 @@ describe('Identity and errors', () => {
 
     vi.useFakeTimers()
     try {
-      renderApp()
+      renderApp('/student')
       await act(async () => {
         await vi.advanceTimersByTimeAsync(0)
       })

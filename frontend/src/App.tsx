@@ -1,131 +1,82 @@
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
+import type { ReactNode } from 'react'
 import './App.css'
-import { ApplicationView } from './components/ApplicationView'
-import { BackendUrlField } from './components/BackendUrlField'
-import { ClassListView } from './components/ClassListView'
-import { CreateClassView } from './components/CreateClassView'
 import { ErrorBoundary } from './components/ErrorBoundary'
-import { MyApplicationsView } from './components/MyApplicationsView'
-import { StudentIdBar } from './components/StudentIdBar'
-import { useClasses } from './hooks/useClasses'
-import { useMyHolds } from './hooks/useMyHolds'
-import { usePageVisible } from './hooks/usePageVisible'
-import { useStudentId } from './hooks/useStudentId'
+import { navigate, useHashRoute } from './router'
+import type { Route } from './router'
+import HomeScreen from './screens/HomeScreen'
 
-type Tab = 'classes' | 'create-class' | 'my-applications'
+// Role screens are code-split: a student never downloads the admin form, and
+// the landing screen stays in the initial bundle.
+const AdminScreen = lazy(() => import('./screens/AdminScreen'))
+const StudentScreen = lazy(() => import('./screens/StudentScreen'))
+const ApplicationScreen = lazy(() => import('./screens/ApplicationScreen'))
+const MyApplicationsScreen = lazy(() => import('./screens/MyApplicationsScreen'))
 
-const TABS: ReadonlyArray<{ id: Tab; label: string }> = [
-  { id: 'classes', label: 'Classes' },
-  { id: 'create-class', label: 'Create Class' },
-  { id: 'my-applications', label: 'My Applications' },
-]
+function roleLabelFor(path: string): string {
+  if (path === '/admin') {
+    return 'School admin'
+  }
+  if (path.startsWith('/student') || path.startsWith('/application')) {
+    return 'Student'
+  }
+  return ''
+}
+
+function screenFor(route: Route): ReactNode {
+  if (route.path === '/') {
+    return <HomeScreen />
+  }
+  if (route.path === '/admin') {
+    return <AdminScreen />
+  }
+  if (route.path === '/student') {
+    return <StudentScreen />
+  }
+  if (route.path === '/student/applications') {
+    return <MyApplicationsScreen />
+  }
+  if (route.segments[0] === 'application' && route.segments[1]) {
+    return (
+      <ApplicationScreen
+        holdId={route.segments[1]}
+        classNameFromRoute={route.query.get('class') ?? undefined}
+      />
+    )
+  }
+
+  return (
+    <section className="view" aria-label="Page not found">
+      <h2>Page not found</h2>
+      <button type="button" className="primary-button" onClick={() => navigate('/')}>
+        Go home
+      </button>
+    </section>
+  )
+}
 
 function App() {
-  const { studentId, setStudentId, isValid, error: studentIdError } = useStudentId()
-  const [tab, setTab] = useState<Tab>('classes')
-  const [active, setActive] = useState<{ holdId: string; className?: string } | null>(null)
+  const route = useHashRoute()
   const [viewKey, setViewKey] = useState(0)
-  const pageVisible = usePageVisible()
-
-  // Poll only what the visible screen needs: nothing while a hold is open, and
-  // nothing while the browser tab is in the background.
-  const classesEnabled = pageVisible && active === null && tab === 'classes'
-  const holdsEnabled = pageVisible && active === null && tab === 'my-applications'
-
-  const classesState = useClasses({ enabled: classesEnabled })
-  const holdsState = useMyHolds(studentId, { enabled: holdsEnabled })
-
-  function openHold(holdId: string, className: string) {
-    setActive({ holdId, className })
-  }
-
-  function handleHoldCreated(holdId: string, className: string) {
-    openHold(holdId, className)
-    void classesState.refresh()
-    void holdsState.refresh()
-  }
+  const role = roleLabelFor(route.path)
 
   return (
     <main className="app">
       <header>
         <h1>School Admission System</h1>
-        <StudentIdBar
-          studentId={studentId}
-          isValid={isValid}
-          error={studentIdError}
-          onChange={setStudentId}
-        />
-        <BackendUrlField />
+        {role && <span className="role-badge">{role}</span>}
+        {route.path !== '/' && (
+          <button type="button" className="link-button" onClick={() => navigate('/')}>
+            Home / change role
+          </button>
+        )}
       </header>
 
-      <ErrorBoundary key={viewKey} onReset={() => setViewKey((value) => value + 1)}>
-        {active ? (
-          <ApplicationView
-            holdId={active.holdId}
-            className={active.className}
-            studentId={studentId}
-            onBack={() => setActive(null)}
-            onHoldChanged={() => {
-              void classesState.refresh()
-              void holdsState.refresh()
-            }}
-          />
-        ) : (
-          <>
-            <nav role="tablist" aria-label="Sections" className="tabs">
-              {TABS.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  role="tab"
-                  id={`tab-${item.id}`}
-                  aria-selected={tab === item.id}
-                  aria-controls={`panel-${item.id}`}
-                  className={tab === item.id ? 'tab tab-active' : 'tab'}
-                  onClick={() => setTab(item.id)}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </nav>
-
-            <section
-              role="tabpanel"
-              id={`panel-${tab}`}
-              aria-labelledby={`tab-${tab}`}
-              className="view"
-            >
-              {tab === 'classes' && (
-                <ClassListView
-                  classes={classesState.classes}
-                  loading={classesState.loading}
-                  error={classesState.error}
-                  studentId={studentId}
-                  canApply={isValid}
-                  onHoldCreated={handleHoldCreated}
-                  onGoToCreate={() => setTab('create-class')}
-                />
-              )}
-              {tab === 'create-class' && (
-                <CreateClassView
-                  onCreated={() => {
-                    void classesState.refresh()
-                  }}
-                />
-              )}
-              {tab === 'my-applications' && (
-                <MyApplicationsView
-                  holds={holdsState.holds}
-                  loading={holdsState.loading}
-                  error={holdsState.error}
-                  canApply={isValid}
-                  onOpenHold={openHold}
-                  onGoToClasses={() => setTab('classes')}
-                />
-              )}
-            </section>
-          </>
-        )}
+      <ErrorBoundary
+        key={`${route.path}:${viewKey}`}
+        onReset={() => setViewKey((value) => value + 1)}
+      >
+        <Suspense fallback={<p className="hint">Loading…</p>}>{screenFor(route)}</Suspense>
       </ErrorBoundary>
     </main>
   )

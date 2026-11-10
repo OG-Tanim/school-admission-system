@@ -4,6 +4,10 @@
   padding: 4rem 1.5rem;
 }
 
+.app > header {
+  margin: 0 0 1.5rem;
+}
+
 h1 {
   margin: 0 0 0.5rem;
   font-size: 2rem;
@@ -161,26 +165,60 @@ code {
   font-size: 0.9rem;
 }
 
-.tabs {
-  display: flex;
-  gap: 0.5rem;
-  margin: 0 0 1.5rem;
+.role-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.75rem;
+  margin: 0 0 2rem;
 }
 
-.tab {
-  padding: 0.5rem 1rem;
+.role-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  padding: 1rem;
   border: 1px solid #d1d5db;
-  border-radius: 6px;
+  border-radius: 8px;
   background: #ffffff;
-  color: #374151;
   font: inherit;
+  text-align: left;
   cursor: pointer;
 }
 
-.tab-active {
+.role-card:hover {
   border-color: #111827;
-  background: #111827;
-  color: #ffffff;
+}
+
+.role-card-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.role-card-desc {
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+.role-badge {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #3730a3;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  vertical-align: middle;
+}
+
+.class-list-block {
+  margin-top: 2rem;
+}
+
+.class-list-block h2 {
+  margin-top: 0;
 }
 
 .view {

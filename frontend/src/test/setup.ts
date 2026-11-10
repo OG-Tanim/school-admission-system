@@ -7,6 +7,7 @@ window.__APP_CONFIG__ = { apiUrl: 'http://api.test' }
 
 beforeEach(() => {
   localStorage.clear()
+  window.location.hash = '#/'
 })
 
 afterEach(() => {
