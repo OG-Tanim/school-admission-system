@@ -306,7 +306,7 @@ incremental commits, not one big final commit).
 
 ## Phase 4 — App shell & tab navigation
 
-- [ ] **4.1** Rewrite `src/App.tsx` into a shell:
+- [x] **4.1** Rewrite `src/App.tsx` into a shell:
 
   ```
   <main className="app">
@@ -329,10 +329,10 @@ incremental commits, not one big final commit).
   - Empty state copy: e.g. "Enter your 17-digit birth-registration number to
     apply and to see your applications." — never a blank page.
 
-- [ ] **4.2** Accessibility: tabs are buttons with `aria-selected`, the active panel
+- [x] **4.2** Accessibility: tabs are buttons with `aria-selected`, the active panel
   has `role="tabpanel"`; error banners use `role="alert"`.
 
-- [ ] **4.3** Gate: keyboard-tab through the header/tabs works; refresh keeps the
+- [x] **4.3** Gate: keyboard-tab through the header/tabs works; refresh keeps the
   current student id (tabs themselves do not need to persist).
 
 ---
