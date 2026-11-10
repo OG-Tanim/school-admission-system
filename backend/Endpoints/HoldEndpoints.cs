@@ -9,6 +9,13 @@ public static class HoldEndpoints
 {
     public const string StudentIdHeader = "X-Student-Id";
 
+    // Cancel messages, reused by the pre-check and the race re-read below.
+    private const string AlreadyConfirmedMessage =
+        "This application is already confirmed and cannot be cancelled.";
+
+    private const string AlreadyExpiredMessage =
+        "This application has expired and can no longer be cancelled.";
+
     public static IEndpointRouteBuilder MapHoldEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapPost("/classes/{classId}/holds", async (
@@ -109,6 +116,234 @@ public static class HoldEndpoints
             return Results.Created($"/holds/{hold.Id}", response);
         });
 
+        app.MapPost("/holds/{holdId}/confirm", async (
+            string holdId,
+            [FromHeader(Name = StudentIdHeader)] string? studentId,
+            AppDbContext db) =>
+        {
+            studentId = studentId?.Trim();
+
+            if (studentId is null || studentId.Length != 17 || !studentId.All(char.IsAsciiDigit))
+            {
+                return Results.BadRequest(new
+                {
+                    error = "X-Student-Id header must be the 17-digit birth-registration number."
+                });
+            }
+
+            if (!Guid.TryParse(holdId, out var holdIdValue))
+            {
+                return Results.NotFound(new { error = "Hold not found." });
+            }
+
+            var hold = await db.Holds
+                .AsNoTracking()
+                .Where(x => x.Id == holdIdValue)
+                .Select(x => new
+                {
+                    x.ClassId,
+                    x.StudentId,
+                    x.Status,
+                    x.ExpiresAt
+                })
+                .FirstOrDefaultAsync();
+
+            if (hold is null)
+            {
+                return Results.NotFound(new { error = "Hold not found." });
+            }
+
+            if (hold.StudentId != studentId)
+            {
+                return Results.Json(
+                    new { error = "This application belongs to another student." },
+                    statusCode: StatusCodes.Status403Forbidden);
+            }
+
+            // R5: confirming the same hold again is idempotent — it stays
+            // CONFIRMED and the seat is not counted twice.
+            if (hold.Status == HoldStatus.Confirmed)
+            {
+                return Results.Ok(new HoldConfirmedResponse(holdIdValue, HoldStatus.Confirmed));
+            }
+
+            if (hold.Status == HoldStatus.Cancelled)
+            {
+                return Results.Conflict(new
+                {
+                    error = "This application has been cancelled and can no longer be confirmed."
+                });
+            }
+
+            var now = DateTimeOffset.UtcNow;
+
+            // R4: only an unexpired HELD application may be confirmed.
+            if (hold.Status == HoldStatus.Expired || hold.ExpiresAt <= now)
+            {
+                return Results.Conflict(new
+                {
+                    error = "This application has expired and can no longer be confirmed. Please apply again."
+                });
+            }
+
+            // One confirmed admission per student per class: a second hold in
+            // the same class may never be confirmed.
+            var alreadyConfirmedInClass = await db.Holds.AnyAsync(h =>
+                h.Id != holdIdValue &&
+                h.ClassId == hold.ClassId &&
+                h.StudentId == studentId &&
+                h.Status == HoldStatus.Confirmed);
+
+            if (alreadyConfirmedInClass)
+            {
+                return Results.Conflict(new
+                {
+                    error = "You already have a confirmed admission in this class."
+                });
+            }
+
+            // The status and expiry guard lives in the UPDATE itself, so two
+            // simultaneous confirms of the same hold cannot both win.
+            var updated = await db.Holds
+                .Where(h => h.Id == holdIdValue &&
+                            h.StudentId == studentId &&
+                            h.Status == HoldStatus.Held &&
+                            h.ExpiresAt > now)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(h => h.Status, HoldStatus.Confirmed)
+                    .SetProperty(h => h.ConfirmedAt, now));
+
+            if (updated == 0)
+            {
+                // Lost a race to another confirm, or the hold expired in
+                // between: report the status that actually won.
+                var currentStatus = await db.Holds
+                    .AsNoTracking()
+                    .Where(h => h.Id == holdIdValue)
+                    .Select(h => (HoldStatus?)h.Status)
+                    .FirstOrDefaultAsync();
+
+                if (currentStatus == HoldStatus.Confirmed)
+                {
+                    return Results.Ok(new HoldConfirmedResponse(holdIdValue, HoldStatus.Confirmed));
+                }
+
+                return Results.Conflict(new
+                {
+                    error = "This application can no longer be confirmed."
+                });
+            }
+
+            return Results.Ok(new HoldConfirmedResponse(holdIdValue, HoldStatus.Confirmed));
+        });
+
+        app.MapDelete("/holds/{holdId}", async (
+            string holdId,
+            [FromHeader(Name = StudentIdHeader)] string? studentId,
+            AppDbContext db) =>
+        {
+            studentId = studentId?.Trim();
+
+            if (studentId is null || studentId.Length != 17 || !studentId.All(char.IsAsciiDigit))
+            {
+                return Results.BadRequest(new
+                {
+                    error = "X-Student-Id header must be the 17-digit birth-registration number."
+                });
+            }
+
+            if (!Guid.TryParse(holdId, out var holdIdValue))
+            {
+                return Results.NotFound(new { error = "Hold not found." });
+            }
+
+            var hold = await db.Holds
+                .AsNoTracking()
+                .Where(x => x.Id == holdIdValue)
+                .Select(x => new
+                {
+                    x.StudentId,
+                    x.Status,
+                    x.ExpiresAt
+                })
+                .FirstOrDefaultAsync();
+
+            if (hold is null)
+            {
+                return Results.NotFound(new { error = "Hold not found." });
+            }
+
+            if (hold.StudentId != studentId)
+            {
+                return Results.Json(
+                    new { error = "This application belongs to another student." },
+                    statusCode: StatusCodes.Status403Forbidden);
+            }
+
+            // A paid admission is final: the brief has no refund flow.
+            if (hold.Status == HoldStatus.Confirmed)
+            {
+                return Results.Conflict(new { error = AlreadyConfirmedMessage });
+            }
+
+            // Cancelling is idempotent: the application is already in the
+            // terminal CANCELLED state.
+            if (hold.Status == HoldStatus.Cancelled)
+            {
+                return Results.NoContent();
+            }
+
+            var now = DateTimeOffset.UtcNow;
+
+            // Expiry is lazy: an elapsed hold already released its seat, so keep
+            // EXPIRED instead of overwriting it with CANCELLED.
+            if (hold.Status == HoldStatus.Expired || hold.ExpiresAt <= now)
+            {
+                return Results.Conflict(new { error = AlreadyExpiredMessage });
+            }
+
+            // The status and expiry guard lives in the UPDATE itself, so a
+            // simultaneous confirm cannot also win.
+            var updated = await db.Holds
+                .Where(h => h.Id == holdIdValue &&
+                            h.StudentId == studentId &&
+                            h.Status == HoldStatus.Held &&
+                            h.ExpiresAt > now)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(h => h.Status, HoldStatus.Cancelled));
+
+            if (updated == 1)
+            {
+                return Results.NoContent();
+            }
+
+            // Lost a race: report the state that actually won.
+            var current = await db.Holds
+                .AsNoTracking()
+                .Where(h => h.Id == holdIdValue)
+                .Select(h => new { h.Status, h.ExpiresAt })
+                .FirstOrDefaultAsync();
+
+            if (current is null)
+            {
+                return Results.NotFound(new { error = "Hold not found." });
+            }
+
+            if (current.Status == HoldStatus.Cancelled)
+            {
+                return Results.NoContent();
+            }
+
+            if (current.Status == HoldStatus.Confirmed)
+            {
+                return Results.Conflict(new { error = AlreadyConfirmedMessage });
+            }
+
+            return current.Status == HoldStatus.Expired || current.ExpiresAt <= now
+                ? Results.Conflict(new { error = AlreadyExpiredMessage })
+                : Results.Conflict(new { error = "This application can no longer be cancelled." });
+        });
+
         app.MapGet("/holds/{holdId}", async (string holdId, AppDbContext db) =>
         {
             if (!Guid.TryParse(holdId, out var holdIdValue))
@@ -206,6 +441,10 @@ public sealed record HoldStatusResponse(
     Guid ClassId,
     HoldStatus Status,
     DateTimeOffset ExpiresAt);
+
+public sealed record HoldConfirmedResponse(
+    Guid HoldId,
+    HoldStatus Status);
 
 public sealed record MyHoldResponse(
     Guid HoldId,

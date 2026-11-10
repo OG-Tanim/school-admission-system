@@ -1,7 +1,7 @@
 # Backend Tests
 
-Automated tests live in [`tests/`](tests/) and cover the class and seat-hold endpoints
-implemented so far.
+Automated tests live in [`tests/`](tests/) and cover the class, seat-hold, confirm, and
+cancel endpoints implemented so far.
 
 - Framework: xUnit 2.9.3
 - API host: `WebApplicationFactory<Program>` (in-memory TestServer, no fixed port)
@@ -44,10 +44,14 @@ also exercised — not just the application-level duplicate check.
 | `GET /classes` | 1 case | Covered |
 | `GET /classes/{classId}` | 3 cases | Covered |
 | `POST /classes/{classId}/holds` | 11 cases (including the required concurrency test) | Covered |
+| `POST /holds/{holdId}/confirm` | 13 cases (including a concurrent-confirm test) | Covered |
+| `DELETE /holds/{holdId}` | 11 cases (including a concurrent-delete test) | Covered |
+| `GET /holds/{holdId}` | — | Implemented, no automated test |
+| `GET /me/holds` | — | Implemented, no automated test |
 | `GET /` | — | Infrastructure endpoint, no automated test |
 | `GET /health` | — | Infrastructure endpoint, no automated test |
 
-Total: **29 test cases**.
+Total: **53 test cases**.
 
 ## `POST /classes`
 
@@ -97,11 +101,49 @@ occupies a seat nor blocks a re-application.
 | `CreateHold_after_expiry_releases_seat_and_ignores_r3` | Expired `HELD` seeded for the same student | Expired hold frees the seat and does not block re-application |
 | `Concurrent_holds_never_exceed_total_seats` | 5-seat class, 30 simultaneous distinct students | Exactly 5 × `201`, 25 × `409`; `held + confirmed <= 5` |
 
+## `POST /holds/{holdId}/confirm`
+
+The `X-Student-Id` header must be a 17-digit birth-registration number and must match the
+hold's student. Only an own, unexpired `HELD` hold can be confirmed; confirming is
+idempotent (rule 5), so `confirmedSeats` never increases twice. The transition is a single
+conditional `UPDATE`, so simultaneous confirms of the same hold have one winner.
+
+| Test | Setup | Expected |
+|---|---|---|
+| `ConfirmHold_returns_200_with_contract_fields` | 120-seat class, own active hold | `200`; body has exactly `holdId` and `status="CONFIRMED"`; `heldSeats=0`, `confirmedSeats=1`, `availableSeats=119` |
+| `ConfirmHold_twice_is_idempotent` | Confirm the same hold twice | Both `200` `CONFIRMED`; `confirmedSeats` stays 1 |
+| `Concurrent_confirms_of_same_hold_confirm_only_once` | 10 parallel confirms of one hold | All `200`; exactly one confirmed seat |
+| `ConfirmHold_other_students_hold_returns_403` | Another student's hold | `403` with readable error; hold still `HELD` |
+| `ConfirmHold_invalid_header_returns_400` | Missing, 16-digit, 18-digit, non-digit header | `400` in every case; nothing confirmed |
+| `ConfirmHold_unknown_id_returns_404` | Random GUID | `404` |
+| `ConfirmHold_malformed_id_returns_404` | `/holds/h_missing01/confirm` | `404` |
+| `ConfirmHold_expired_returns_409` | Seeded `HELD` hold past `ExpiresAt` | `409` with readable error; `confirmedSeats=0` |
+| `ConfirmHold_cancelled_returns_409` | Seeded `CANCELLED` hold | `409` with readable error |
+| `ConfirmHold_second_hold_in_same_class_returns_409` | Two `HELD` rows seeded for one student and class; confirm the first, then the second | `200` then `409` "You already have a confirmed admission in this class."; `confirmedSeats=1` |
+
+## `DELETE /holds/{holdId}`
+
+The `X-Student-Id` header must be a 17-digit birth-registration number and must match the
+hold's student. Cancelling is a status transition to `CANCELLED` (not a row delete), so the
+application stays visible in `GET /holds/{holdId}` and `GET /me/holds`. Only unconfirmed
+holds can be cancelled: `CONFIRMED` is final, and an expired hold keeps `EXPIRED`. The
+conditional `UPDATE` makes repeated deletes idempotent and serializes them against confirm.
+
+| Test | Setup | Expected |
+|---|---|---|
+| `DeleteHold_returns_204_and_frees_the_seat` | Own active hold in a 10-seat class | `204` with empty body; `GET` → `CANCELLED`; `heldSeats=0`, `availableSeats=10`; the same student can apply again (`201`) |
+| `DeleteHold_twice_is_idempotent` | Delete the same hold twice | `204` both times; status stays `CANCELLED` |
+| `DeleteHold_other_students_hold_returns_403` | Another student's hold | `403` with readable error; hold still `HELD` |
+| `DeleteHold_expired_returns_409_and_keeps_expired` | Seeded `HELD` hold past `ExpiresAt` | `409` with readable error; `GET` still reports `EXPIRED` |
+| `DeleteHold_confirmed_returns_409_and_keeps_confirmed` | Confirm the hold, then delete it | `409` with readable error; still `CONFIRMED`; `confirmedSeats=1` |
+| `DeleteHold_invalid_header_returns_400` | Missing, 16-digit, 18-digit, non-digit header | `400` in every case; hold still `HELD` |
+| `DeleteHold_unknown_or_malformed_id_returns_404` | Random GUID and `/holds/h_missing01` | `404` for both |
+| `Concurrent_deletes_cancel_once` | 5 parallel deletes of one hold | All `204`; `heldSeats=0`, `availableSeats=5` |
+
 ## Not covered yet
 
+- `GET /holds/{holdId}` and `GET /me/holds` are implemented and were verified manually
+  against a live PostgreSQL instance, but have no automated tests yet.
 - `GET /` and `GET /health` are infrastructure endpoints outside the assignment API and
   have no automated tests.
-- Remaining hold endpoints (`GET /holds/{holdId}`, `POST /holds/{holdId}/confirm`,
-  `DELETE /holds/{holdId}`, `GET /me/holds`) are not implemented yet; their tests will be
-  added next.
 - No frontend tests exist yet.

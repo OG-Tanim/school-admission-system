@@ -184,6 +184,319 @@ public sealed class HoldEndpointsTests : IAsyncLifetime
         Assert.Equal(0, cls.GetProperty("availableSeats").GetInt32());
     }
 
+    [Fact]
+    public async Task ConfirmHold_returns_200_with_contract_fields()
+    {
+        var classId = await CreateClassAsync("Class 7 - Morning Shift", 120);
+        var holdId = await CreateHoldAsync(classId, StudentA);
+
+        var response = await ConfirmHoldAsync(holdId.ToString(), StudentA);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var body = await ReadJsonAsync(response);
+        Assert.Equal(holdId, body.GetProperty("holdId").GetGuid());
+        Assert.Equal("CONFIRMED", body.GetProperty("status").GetString());
+        Assert.Equal(2, body.EnumerateObject().Count());
+
+        var cls = await _client.GetFromJsonAsync<JsonElement>($"/classes/{classId}");
+        Assert.Equal(0, cls.GetProperty("heldSeats").GetInt32());
+        Assert.Equal(1, cls.GetProperty("confirmedSeats").GetInt32());
+        Assert.Equal(119, cls.GetProperty("availableSeats").GetInt32());
+    }
+
+    [Fact]
+    public async Task ConfirmHold_twice_is_idempotent()
+    {
+        var classId = await CreateClassAsync("Class 7 - Day Shift", 10);
+        var holdId = await CreateHoldAsync(classId, StudentA);
+
+        Assert.Equal(HttpStatusCode.OK, (await ConfirmHoldAsync(holdId.ToString(), StudentA)).StatusCode);
+
+        var second = await ConfirmHoldAsync(holdId.ToString(), StudentA);
+
+        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+        var body = await ReadJsonAsync(second);
+        Assert.Equal(holdId, body.GetProperty("holdId").GetGuid());
+        Assert.Equal("CONFIRMED", body.GetProperty("status").GetString());
+
+        var cls = await _client.GetFromJsonAsync<JsonElement>($"/classes/{classId}");
+        Assert.Equal(0, cls.GetProperty("heldSeats").GetInt32());
+        Assert.Equal(1, cls.GetProperty("confirmedSeats").GetInt32());
+    }
+
+    [Fact]
+    public async Task Concurrent_confirms_of_same_hold_confirm_only_once()
+    {
+        var classId = await CreateClassAsync("Class 7 - Evening Shift", 5);
+        var holdId = await CreateHoldAsync(classId, StudentA);
+
+        var responses = await Task.WhenAll(Enumerable.Range(0, 10)
+            .Select(_ => ConfirmHoldAsync(holdId.ToString(), StudentA)));
+
+        Assert.All(responses, r => Assert.Equal(HttpStatusCode.OK, r.StatusCode));
+
+        var cls = await _client.GetFromJsonAsync<JsonElement>($"/classes/{classId}");
+        Assert.Equal(0, cls.GetProperty("heldSeats").GetInt32());
+        Assert.Equal(1, cls.GetProperty("confirmedSeats").GetInt32());
+    }
+
+    [Fact]
+    public async Task ConfirmHold_other_students_hold_returns_403()
+    {
+        var classId = await CreateClassAsync("Class 8 - Morning Shift", 10);
+        var holdId = await CreateHoldAsync(classId, StudentA);
+
+        var response = await ConfirmHoldAsync(holdId.ToString(), StudentB);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        var body = await ReadJsonAsync(response);
+        Assert.False(string.IsNullOrWhiteSpace(body.GetProperty("error").GetString()));
+
+        var cls = await _client.GetFromJsonAsync<JsonElement>($"/classes/{classId}");
+        Assert.Equal(1, cls.GetProperty("heldSeats").GetInt32());
+        Assert.Equal(0, cls.GetProperty("confirmedSeats").GetInt32());
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("1234567890123456")]   // 16 digits
+    [InlineData("123456789012345678")] // 18 digits
+    [InlineData("2015269123456789a")]  // not all digits
+    public async Task ConfirmHold_invalid_header_returns_400(string? studentId)
+    {
+        var classId = await CreateClassAsync("Class 8 - Day Shift", 10);
+        var holdId = await CreateHoldAsync(classId, StudentA);
+
+        var response = await ConfirmHoldAsync(holdId.ToString(), studentId);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        var cls = await _client.GetFromJsonAsync<JsonElement>($"/classes/{classId}");
+        Assert.Equal(0, cls.GetProperty("confirmedSeats").GetInt32());
+    }
+
+    [Fact]
+    public async Task ConfirmHold_unknown_id_returns_404()
+    {
+        var response = await ConfirmHoldAsync(Guid.NewGuid().ToString(), StudentA);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ConfirmHold_malformed_id_returns_404()
+    {
+        var response = await ConfirmHoldAsync("h_missing01", StudentA);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ConfirmHold_expired_returns_409()
+    {
+        var classId = await CreateClassAsync("Class 9 - Morning Shift", 10);
+        var holdId = await SeedHoldAsync(
+            classId,
+            StudentA,
+            HoldStatus.Held,
+            DateTimeOffset.UtcNow.AddMinutes(-1));
+
+        var response = await ConfirmHoldAsync(holdId.ToString(), StudentA);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        var body = await ReadJsonAsync(response);
+        Assert.False(string.IsNullOrWhiteSpace(body.GetProperty("error").GetString()));
+
+        var cls = await _client.GetFromJsonAsync<JsonElement>($"/classes/{classId}");
+        Assert.Equal(0, cls.GetProperty("confirmedSeats").GetInt32());
+    }
+
+    [Fact]
+    public async Task ConfirmHold_cancelled_returns_409()
+    {
+        var classId = await CreateClassAsync("Class 9 - Day Shift", 10);
+        var holdId = await SeedHoldAsync(
+            classId,
+            StudentA,
+            HoldStatus.Cancelled,
+            DateTimeOffset.UtcNow.AddMinutes(5));
+
+        var response = await ConfirmHoldAsync(holdId.ToString(), StudentA);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        var body = await ReadJsonAsync(response);
+        Assert.False(string.IsNullOrWhiteSpace(body.GetProperty("error").GetString()));
+    }
+
+    [Fact]
+    public async Task ConfirmHold_second_hold_in_same_class_returns_409()
+    {
+        var classId = await CreateClassAsync("Class 10 - Morning Shift", 10);
+        var first = await CreateHoldAsync(classId, StudentA);
+
+        // Rule 3 stops a second HELD row through the API, so seed one to
+        // exercise "one confirmed admission per student per class".
+        var second = await SeedHoldAsync(
+            classId,
+            StudentA,
+            HoldStatus.Held,
+            DateTimeOffset.UtcNow.AddMinutes(5));
+
+        Assert.Equal(HttpStatusCode.OK, (await ConfirmHoldAsync(first.ToString(), StudentA)).StatusCode);
+
+        var response = await ConfirmHoldAsync(second.ToString(), StudentA);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        var body = await ReadJsonAsync(response);
+        Assert.Equal(
+            "You already have a confirmed admission in this class.",
+            body.GetProperty("error").GetString());
+
+        var cls = await _client.GetFromJsonAsync<JsonElement>($"/classes/{classId}");
+        Assert.Equal(1, cls.GetProperty("confirmedSeats").GetInt32());
+    }
+
+    [Fact]
+    public async Task DeleteHold_returns_204_and_frees_the_seat()
+    {
+        var classId = await CreateClassAsync("Class 11 - Morning Shift", 10);
+        var holdId = await CreateHoldAsync(classId, StudentA);
+
+        var response = await DeleteHoldAsync(holdId.ToString(), StudentA);
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.True(string.IsNullOrEmpty(await response.Content.ReadAsStringAsync()));
+
+        var hold = await _client.GetFromJsonAsync<JsonElement>($"/holds/{holdId}");
+        Assert.Equal("CANCELLED", hold.GetProperty("status").GetString());
+
+        var cls = await _client.GetFromJsonAsync<JsonElement>($"/classes/{classId}");
+        Assert.Equal(0, cls.GetProperty("heldSeats").GetInt32());
+        Assert.Equal(10, cls.GetProperty("availableSeats").GetInt32());
+
+        // A cancelled application no longer blocks a fresh one.
+        Assert.Equal(HttpStatusCode.Created, (await PostHoldAsync(classId, StudentA)).StatusCode);
+    }
+
+    [Fact]
+    public async Task DeleteHold_twice_is_idempotent()
+    {
+        var classId = await CreateClassAsync("Class 11 - Day Shift", 10);
+        var holdId = await CreateHoldAsync(classId, StudentA);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await DeleteHoldAsync(holdId.ToString(), StudentA)).StatusCode);
+
+        var second = await DeleteHoldAsync(holdId.ToString(), StudentA);
+
+        Assert.Equal(HttpStatusCode.NoContent, second.StatusCode);
+
+        var hold = await _client.GetFromJsonAsync<JsonElement>($"/holds/{holdId}");
+        Assert.Equal("CANCELLED", hold.GetProperty("status").GetString());
+    }
+
+    [Fact]
+    public async Task DeleteHold_other_students_hold_returns_403()
+    {
+        var classId = await CreateClassAsync("Class 11 - Evening Shift", 10);
+        var holdId = await CreateHoldAsync(classId, StudentA);
+
+        var response = await DeleteHoldAsync(holdId.ToString(), StudentB);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        var body = await ReadJsonAsync(response);
+        Assert.False(string.IsNullOrWhiteSpace(body.GetProperty("error").GetString()));
+
+        var hold = await _client.GetFromJsonAsync<JsonElement>($"/holds/{holdId}");
+        Assert.Equal("HELD", hold.GetProperty("status").GetString());
+    }
+
+    [Fact]
+    public async Task DeleteHold_expired_returns_409_and_keeps_expired()
+    {
+        var classId = await CreateClassAsync("Class 12 - Morning Shift", 10);
+        var holdId = await SeedHoldAsync(
+            classId,
+            StudentA,
+            HoldStatus.Held,
+            DateTimeOffset.UtcNow.AddMinutes(-1));
+
+        var response = await DeleteHoldAsync(holdId.ToString(), StudentA);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        var body = await ReadJsonAsync(response);
+        Assert.False(string.IsNullOrWhiteSpace(body.GetProperty("error").GetString()));
+
+        var hold = await _client.GetFromJsonAsync<JsonElement>($"/holds/{holdId}");
+        Assert.Equal("EXPIRED", hold.GetProperty("status").GetString());
+    }
+
+    [Fact]
+    public async Task DeleteHold_confirmed_returns_409_and_keeps_confirmed()
+    {
+        var classId = await CreateClassAsync("Class 12 - Day Shift", 10);
+        var holdId = await CreateHoldAsync(classId, StudentA);
+        Assert.Equal(HttpStatusCode.OK, (await ConfirmHoldAsync(holdId.ToString(), StudentA)).StatusCode);
+
+        var response = await DeleteHoldAsync(holdId.ToString(), StudentA);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        var body = await ReadJsonAsync(response);
+        Assert.False(string.IsNullOrWhiteSpace(body.GetProperty("error").GetString()));
+
+        var hold = await _client.GetFromJsonAsync<JsonElement>($"/holds/{holdId}");
+        Assert.Equal("CONFIRMED", hold.GetProperty("status").GetString());
+
+        var cls = await _client.GetFromJsonAsync<JsonElement>($"/classes/{classId}");
+        Assert.Equal(1, cls.GetProperty("confirmedSeats").GetInt32());
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("1234567890123456")]   // 16 digits
+    [InlineData("123456789012345678")] // 18 digits
+    [InlineData("2015269123456789a")]  // not all digits
+    public async Task DeleteHold_invalid_header_returns_400(string? studentId)
+    {
+        var classId = await CreateClassAsync("Class 12 - Evening Shift", 10);
+        var holdId = await CreateHoldAsync(classId, StudentA);
+
+        var response = await DeleteHoldAsync(holdId.ToString(), studentId);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        var hold = await _client.GetFromJsonAsync<JsonElement>($"/holds/{holdId}");
+        Assert.Equal("HELD", hold.GetProperty("status").GetString());
+    }
+
+    [Fact]
+    public async Task DeleteHold_unknown_or_malformed_id_returns_404()
+    {
+        Assert.Equal(
+            HttpStatusCode.NotFound,
+            (await DeleteHoldAsync(Guid.NewGuid().ToString(), StudentA)).StatusCode);
+
+        Assert.Equal(
+            HttpStatusCode.NotFound,
+            (await DeleteHoldAsync("h_missing01", StudentA)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Concurrent_deletes_cancel_once()
+    {
+        var classId = await CreateClassAsync("Class 13 - Morning Shift", 5);
+        var holdId = await CreateHoldAsync(classId, StudentA);
+
+        var responses = await Task.WhenAll(Enumerable.Range(0, 5)
+            .Select(_ => DeleteHoldAsync(holdId.ToString(), StudentA)));
+
+        Assert.All(responses, r => Assert.Equal(HttpStatusCode.NoContent, r.StatusCode));
+
+        var cls = await _client.GetFromJsonAsync<JsonElement>($"/classes/{classId}");
+        Assert.Equal(0, cls.GetProperty("heldSeats").GetInt32());
+        Assert.Equal(5, cls.GetProperty("availableSeats").GetInt32());
+    }
+
     private async Task<Guid> CreateClassAsync(string name, int totalSeats)
     {
         var response = await _client.PostAsJsonAsync("/classes", new { name, totalSeats });
@@ -196,6 +509,61 @@ public sealed class HoldEndpointsTests : IAsyncLifetime
     private async Task<HttpResponseMessage> PostHoldAsync(Guid classId, string? studentId)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, $"/classes/{classId}/holds");
+
+        if (studentId is not null)
+        {
+            request.Headers.TryAddWithoutValidation(HoldEndpoints.StudentIdHeader, studentId);
+        }
+
+        return await _client.SendAsync(request);
+    }
+
+    private async Task<Guid> CreateHoldAsync(Guid classId, string studentId)
+    {
+        var response = await PostHoldAsync(classId, studentId);
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+
+        var body = await ReadJsonAsync(response);
+        return body.GetProperty("holdId").GetGuid();
+    }
+
+    private async Task<Guid> SeedHoldAsync(
+        Guid classId,
+        string studentId,
+        HoldStatus status,
+        DateTimeOffset expiresAt)
+    {
+        var hold = new SeatHold
+        {
+            ClassId = classId,
+            StudentId = studentId,
+            Status = status,
+            ExpiresAt = expiresAt
+        };
+
+        using var scope = _fixture.Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        db.Holds.Add(hold);
+        await db.SaveChangesAsync();
+
+        return hold.Id;
+    }
+
+    private async Task<HttpResponseMessage> ConfirmHoldAsync(string holdId, string? studentId)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"/holds/{holdId}/confirm");
+
+        if (studentId is not null)
+        {
+            request.Headers.TryAddWithoutValidation(HoldEndpoints.StudentIdHeader, studentId);
+        }
+
+        return await _client.SendAsync(request);
+    }
+
+    private async Task<HttpResponseMessage> DeleteHoldAsync(string holdId, string? studentId)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Delete, $"/holds/{holdId}");
 
         if (studentId is not null)
         {
