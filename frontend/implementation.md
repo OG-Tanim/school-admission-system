@@ -341,10 +341,10 @@ incremental commits, not one big final commit).
 
 ### 5.1 Class List (`src/components/ClassListView.tsx`)
 
-- [ ] **5.1.1** Poll `GET /classes` with `useClasses` (Phase 6) — render a table or
+- [x] **5.1.1** Poll `GET /classes` with `useClasses` (Phase 6) — render a table or
   card list with **Name · Total · Held · Confirmed · Available** and an **Apply**
   button per row.
-- [ ] **5.1.2** Apply flow:
+- [x] **5.1.2** Apply flow:
   - Requires a valid student id; otherwise the button is disabled and a hint points at
     the top field.
   - Disabled when `availableSeats === 0` (label or tooltip "No seats available").
@@ -352,36 +352,36 @@ incremental commits, not one big final commit).
     `onHoldCreated(holdCreated.holdId)` → shell opens **Application**; on
     `ApiError` show the message inline on that row (keep the list interactive).
   - Guard against double-clicks while the request is in flight (`pendingClassId`).
-- [ ] **5.1.3** Empty list: "No classes have been created yet." + a link/button to the
+- [x] **5.1.3** Empty list: "No classes have been created yet." + a link/button to the
   Create Class tab.
-- [ ] **5.1.4** Seat-number sanity check: if `held + confirmed > totalSeats` ever
+- [x] **5.1.4** Seat-number sanity check: if `held + confirmed > totalSeats` ever
   renders (it shouldn't), show it rather than hiding it — never crash.
 
 ### 5.2 Create Class (`src/components/CreateClassView.tsx`)
 
-- [ ] **5.2.1** Form: **Class name** (text, required, max 200) and **Total seats**
+- [x] **5.2.1** Form: **Class name** (text, required, max 200) and **Total seats**
   (number, min 1, integer). Both required; block submit with inline messages for
   empty/`0`/`-1`/non-integer.
-- [ ] **5.2.2** Submit → `createClass`. On `201`: clear the form, show a success
+- [x] **5.2.2** Submit → `createClass`. On `201`: clear the form, show a success
   notice ("Class created: <name>"), and notify the shell to refresh the class list
   immediately (not waiting for the 5 s poll).
-- [ ] **5.2.3** On `409`: show the backend's duplicate message verbatim
+- [x] **5.2.3** On `409`: show the backend's duplicate message verbatim
   ("class name already exists, please create class with a different name") next to
   the name field. On any other `ApiError`: show the friendly message.
-- [ ] **5.2.4** Prevent double submit while pending.
+- [x] **5.2.4** Prevent double submit while pending.
 
 ### 5.3 Application (`src/components/ApplicationView.tsx`)
 
 Input: `holdId` (from Apply or a My Applications row), `studentId`.
 
-- [ ] **5.3.1** Load `getHold(holdId)`; show class name if available (from the row
+- [x] **5.3.1** Load `getHold(holdId)`; show class name if available (from the row
   that opened it — pass it as a prop to avoid an extra call), the **status badge**,
   and the **time remaining**.
-- [ ] **5.3.2** Countdown: `useCountdown(expiresAt)` ticking every 1 s, formatted
+- [x] **5.3.2** Countdown: `useCountdown(expiresAt)` ticking every 1 s, formatted
   `mm:ss` (and `hh:mm:ss` if ≥ 1 h). When the clock passes `expiresAt` and the last
   known status was `HELD`, render the badge as **EXPIRED** immediately — no reload
   (UI rule 2).
-- [ ] **5.3.3** Buttons:
+- [x] **5.3.3** Buttons:
   - **Pay Admission Fee** — enabled only when `status === 'HELD'` **and** not expired.
     Calls `confirmHold(holdId, studentId)`; on success set status `CONFIRMED`, show
     "Admission confirmed." and stop the countdown.
@@ -391,27 +391,27 @@ Input: `holdId` (from Apply or a My Applications row), `studentId`.
   - `CONFIRMED` / `CANCELLED` / `EXPIRED`: both buttons disabled, with a short
     explanation ("This application has expired and the seat has been released." /
     "Admission confirmed." / "Application cancelled.").
-- [ ] **5.3.4** While polling/refreshing, never flash the old status back to `HELD`
+- [x] **5.3.4** While polling/refreshing, never flash the old status back to `HELD`
   after a confirm — the local state wins for terminal states within the view.
-- [ ] **5.3.5** `403`/`404`/`409` from confirm/cancel show the backend's message
+- [x] **5.3.5** `403`/`404`/`409` from confirm/cancel show the backend's message
   inline and re-fetch the hold once to resync.
 
 ### 5.4 My Applications (`src/components/MyApplicationsView.tsx`)
 
-- [ ] **5.4.1** Poll `GET /me/holds` via `useMyHolds(studentId)` when the id is
+- [x] **5.4.1** Poll `GET /me/holds` via `useMyHolds(studentId)` when the id is
   valid; otherwise show the "enter your number" empty state (UI rule 4 — after
   refresh the list repopulates from the stored id).
-- [ ] **5.4.2** Rows: **Class name · status badge · countdown (only when `HELD`)**;
+- [x] **5.4.2** Rows: **Class name · status badge · countdown (only when `HELD`)**;
   clicking a row calls `onOpenHold(holdId, className)` → opens **Application**.
-- [ ] **5.4.3** Sort as returned by the API (already newest-first); do not re-sort.
-- [ ] **5.4.4** Empty state: "You have no applications yet." + button to the Classes
+- [x] **5.4.3** Sort as returned by the API (already newest-first); do not re-sort.
+- [x] **5.4.4** Empty state: "You have no applications yet." + button to the Classes
   tab.
 
 ---
 
 ## Phase 6 — Polling & live updates
 
-- [ ] **6.1** `src/hooks/useClasses.ts`:
+- [x] **6.1** `src/hooks/useClasses.ts`:
 
   - `listClasses()` on mount, then `setInterval(…, 5000)`.
   - Keep the previous data while a refresh is in flight (no flicker); track
@@ -420,14 +420,14 @@ Input: `holdId` (from Apply or a My Applications row), `studentId`.
     ("Couldn't refresh seat counts — retrying…").
   - Clear the interval on unmount.
 
-- [ ] **6.2** `src/hooks/useMyHolds.ts`: same shape, keyed on `studentId`; re-fetch
+- [x] **6.2** `src/hooks/useMyHolds.ts`: same shape, keyed on `studentId`; re-fetch
   when the id changes; no interval when the id is invalid.
 
-- [ ] **6.3** `src/hooks/useCountdown.ts`: given an ISO `expiresAt`, return
+- [x] **6.3** `src/hooks/useCountdown.ts`: given an ISO `expiresAt`, return
   `{ remainingMs, expired, label }`, ticking every 1 s; recompute immediately on
   mount and on argument change; clean up on unmount.
 
-- [ ] **6.4** After Confirm/Cancel/Create, call the relevant `refresh()` so the list
+- [x] **6.4** After Confirm/Cancel/Create, call the relevant `refresh()` so the list
   and seat counts update before the next poll.
 
 - [ ] **6.5** Gate: with the Docker stack up, hold a seat in one tab and confirm it in

@@ -1,7 +1,13 @@
 import { useState } from 'react'
 import './App.css'
+import { ApplicationView } from './components/ApplicationView'
 import { BackendUrlField } from './components/BackendUrlField'
+import { ClassListView } from './components/ClassListView'
+import { CreateClassView } from './components/CreateClassView'
+import { MyApplicationsView } from './components/MyApplicationsView'
 import { StudentIdBar } from './components/StudentIdBar'
+import { useClasses } from './hooks/useClasses'
+import { useMyHolds } from './hooks/useMyHolds'
 import { useStudentId } from './hooks/useStudentId'
 
 type Tab = 'classes' | 'create-class' | 'my-applications'
@@ -13,9 +19,22 @@ const TABS: ReadonlyArray<{ id: Tab; label: string }> = [
 ]
 
 function App() {
-  const { studentId, setStudentId, isValid, error } = useStudentId()
+  const { studentId, setStudentId, isValid, error: studentIdError } = useStudentId()
   const [tab, setTab] = useState<Tab>('classes')
-  const [activeHoldId, setActiveHoldId] = useState<string | null>(null)
+  const [active, setActive] = useState<{ holdId: string; className?: string } | null>(null)
+
+  const classesState = useClasses()
+  const holdsState = useMyHolds(studentId)
+
+  function openHold(holdId: string, className: string) {
+    setActive({ holdId, className })
+  }
+
+  function handleHoldCreated(holdId: string, className: string) {
+    openHold(holdId, className)
+    void classesState.refresh()
+    void holdsState.refresh()
+  }
 
   return (
     <main className="app">
@@ -24,23 +43,23 @@ function App() {
         <StudentIdBar
           studentId={studentId}
           isValid={isValid}
-          error={error}
+          error={studentIdError}
           onChange={setStudentId}
         />
         <BackendUrlField />
       </header>
 
-      {activeHoldId !== null ? (
-        <section className="view" aria-label="Application">
-          <p>Application details will appear here.</p>
-          <button
-            type="button"
-            className="link-button"
-            onClick={() => setActiveHoldId(null)}
-          >
-            Back
-          </button>
-        </section>
+      {active ? (
+        <ApplicationView
+          holdId={active.holdId}
+          className={active.className}
+          studentId={studentId}
+          onBack={() => setActive(null)}
+          onHoldChanged={() => {
+            void classesState.refresh()
+            void holdsState.refresh()
+          }}
+        />
       ) : (
         <>
           <nav role="tablist" aria-label="Sections" className="tabs">
@@ -66,17 +85,34 @@ function App() {
             aria-labelledby={`tab-${tab}`}
             className="view"
           >
-            {tab === 'classes' && <p>Class list and Apply will appear here.</p>}
-            {tab === 'create-class' && <p>Create-class form will appear here.</p>}
-            {tab === 'my-applications' &&
-              (isValid ? (
-                <p>Your applications will appear here.</p>
-              ) : (
-                <p>
-                  Enter your 17-digit birth-registration number to apply and to see
-                  your applications.
-                </p>
-              ))}
+            {tab === 'classes' && (
+              <ClassListView
+                classes={classesState.classes}
+                loading={classesState.loading}
+                error={classesState.error}
+                studentId={studentId}
+                canApply={isValid}
+                onHoldCreated={handleHoldCreated}
+                onGoToCreate={() => setTab('create-class')}
+              />
+            )}
+            {tab === 'create-class' && (
+              <CreateClassView
+                onCreated={() => {
+                  void classesState.refresh()
+                }}
+              />
+            )}
+            {tab === 'my-applications' && (
+              <MyApplicationsView
+                holds={holdsState.holds}
+                loading={holdsState.loading}
+                error={holdsState.error}
+                canApply={isValid}
+                onOpenHold={openHold}
+                onGoToClasses={() => setTab('classes')}
+              />
+            )}
           </section>
         </>
       )}
