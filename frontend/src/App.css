@@ -122,3 +122,41 @@ code {
   margin: 0;
   color: #6b7280;
 }
+
+.student-id {
+  margin: 0 0 2rem;
+  padding: 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.student-id label {
+  display: block;
+  color: #6b7280;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.student-id input {
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.05em;
+}
+
+.student-id-hint {
+  margin: 0.5rem 0 0;
+  color: #6b7280;
+  font-size: 0.85rem;
+}
+
+.field-error {
+  margin: 0.5rem 0 0;
+  color: #b91c1c;
+  font-size: 0.9rem;
+}

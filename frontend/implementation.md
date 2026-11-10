@@ -275,7 +275,7 @@ incremental commits, not one big final commit).
 
 ## Phase 3 — Student identity & persistence
 
-- [ ] **3.1** Create `src/hooks/useStudentId.ts`:
+- [x] **3.1** Create `src/hooks/useStudentId.ts`:
 
   - `const KEY = 'studentId'` (document in `ASSUMPTIONS.md`).
   - Initial state = `localStorage.getItem(KEY) ?? ''` (guard the access: private mode
@@ -286,7 +286,7 @@ incremental commits, not one big final commit).
   - Expose `{ studentId, setStudentId, isValid, error }`; `error` is a human sentence
     when a non-empty value is not 17 digits.
 
-- [ ] **3.2** Create `src/components/StudentIdBar.tsx`:
+- [x] **3.2** Create `src/components/StudentIdBar.tsx`:
 
   - Label "Student birth-registration number (17 digits)".
   - Controlled input, `inputMode="numeric"`, `maxLength={17}`, `autoComplete="off"`,
@@ -295,11 +295,11 @@ incremental commits, not one big final commit).
   - On change, persist through `setStudentId` (so refresh keeps identity —
     UI rule 4).
 
-- [ ] **3.3** Create `src/components/BackendUrlField.tsx`: extract the existing
+- [x] **3.3** Create `src/components/BackendUrlField.tsx`: extract the existing
   form from `App.tsx` unchanged (Apply / Reset default / in-use display / stored
   override note). No behaviour change.
 
-- [ ] **3.4** Gate: typing 17 digits survives a refresh; a 16- or 18-digit value
+- [x] **3.4** Gate: typing 17 digits survives a refresh; a 16- or 18-digit value
   shows a readable error and cannot be used to apply.
 
 ---
