@@ -73,6 +73,11 @@ The dev server reads the same `config/api-url.env` file (falling back to the `AP
 environment variable) and serves it as the default. The **Backend URL** field behaves as
 it does in Docker and applies immediately without restarting `npm run dev`.
 
+The frontend is TypeScript throughout — the React app, the Vite config, and the Node
+server that serves the bundle. `npm run build` type-checks with `tsc -b` and bundles the
+app into `dist/`; `npm run build:server` bundles the production server into
+`dist-server/`. The Docker image runs the same two commands.
+
 ## Tests
 
 Backend:
@@ -96,7 +101,8 @@ Vitest renders the app in jsdom with a stubbed `fetch`, so no backend is needed.
 
 ## Status
 
-Class creation, listing, and detail endpoints plus seat-hold creation
-(`POST /classes/{classId}/holds`) are implemented and covered by integration tests.
-The remaining hold endpoints, the admission screens, and the other deliverables are
-pending; the Docker setup is complete.
+All eight API endpoints are implemented and covered by backend integration tests.
+The frontend implements every operation — create a class, browse classes with live seat
+counts, apply, pay, cancel, and view applications — as a single page with tabs, served by
+the container at <http://localhost:3000>. `npm test`, `npm run lint`, and `npm run build`
+pass, and the Docker stack serves the full flow end to end.

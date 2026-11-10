@@ -39,6 +39,34 @@ individual user to point their own browser at a different backend when necessary
   new hold before committing. PostgreSQL holds the lock, so simultaneous requests — and
   several backend processes sharing one database — are serialized per class and
   `held + confirmed` can never exceed `totalSeats`.
+
+In SQL terms, the hold-creation transaction is:
+
+```sql
+BEGIN;
+  -- 1. Lock the class row: serializes all hold-creates for THIS class
+  SELECT id, total_seats FROM classes WHERE id = @classId FOR UPDATE;
+  --    (0 rows → 404)
+
+  -- 2. student already active in this class?
+  --    (lazy expiration: expired HELD rows don't count)
+  SELECT 1 FROM holds
+   WHERE class_id = @classId AND student_id = @studentId
+     AND (status = 'CONFIRMED' OR (status = 'HELD' AND expires_at > now()))
+   LIMIT 1;
+  --    (found → 409 "already applied")
+
+  -- 3. Capacity: occupied seats as of now
+  confirmed = COUNT(*) WHERE class_id=@classId AND status='CONFIRMED'
+  held      = COUNT(*) WHERE class_id=@classId AND status='HELD' AND expires_at > now()
+  --    (confirmed + held >= total_seats → 409 "no seat available")
+
+  -- 4. Reserve
+  INSERT INTO holds (id, class_id, student_id, status, created_at, expires_at)
+  VALUES (…, 'HELD', now(), now() + @hold_duration_seconds * interval '1 second');
+COMMIT;
+```
+
 - The lock is held only for the milliseconds of that transaction, never for the hold's
   lifetime. A long `HOLD_DURATION_SECONDS` (up to the 15 minutes we expect) therefore does
   not reduce concurrency.
@@ -47,3 +75,29 @@ individual user to point their own browser at a different backend when necessary
   API call or background job is needed to release the seat.
 - `HOLD_DURATION_SECONDS` defaults to `600`; values outside `1..86400` fall back to the
   default so a bad value cannot overflow the expiry timestamp.
+
+## 5. Cancelling an application
+
+- `DELETE /holds/{holdId}` cancels only an **unconfirmed** hold: a `CONFIRMED` admission is final and rejected with `409`, and an already expired hold keeps `EXPIRED` (also `409`) so the UI can still show why it ended.
+- Cancelling moves the hold to `CANCELLED` (idempotent `204`) instead of deleting the row, so `GET /holds/{holdId}` and `GET /me/holds` keep reporting the application.
+
+## 6. Frontend behaviour
+
+- **Four screens, one page.** Classes, Create Class, and My Applications are tabs.
+  **Application** is a detail view opened from **Apply** or from a My Applications row;
+  **Back** returns to the tabs.
+- **Live counts.** The class list and My Applications poll every 5 seconds. A failed poll
+  keeps the last good data on screen and shows a banner; the next successful poll clears
+  it. The hold countdown ticks every second, so an expiring hold flips to **EXPIRED** and
+  disables **Pay** without a page reload.
+- **Identity.** The 17-digit birth-registration number is stored in
+  `localStorage['studentId']`, so a refresh or a reopened tab still shows the student's
+  applications. It is sent as `X-Student-Id` only on the endpoints that require it.
+- **Backend URL.** The field in the header overrides the environment default for the
+  current browser only (also in `localStorage`); the environment file is never rewritten.
+- **Errors are always visible.** Network failures, backend `4xx` messages, and `5xx`
+  failures render as plain-language text in the active view. A render error shows a
+  fallback with **Try again** rather than a blank page.
+- **TypeScript everywhere.** The React app, the Vite config, and the Node server are
+  TypeScript; `tsc -b` runs as part of `npm run build`, and the server is bundled with
+  esbuild for the runtime image.

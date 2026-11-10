@@ -26,3 +26,19 @@
 ## Step - 4
 
 - IDs switched from custom `c_`/`h_` short identifiers to GUIDs. A GUID's collision probability is negligible, so the custom `ShortId` generator and the collision-retry loops for both class and hold creation were removed as dead code. The duplicate-class-name `409` handling stayed, since it is still needed.
+
+## Step - 5
+
+- The complete React UI was implemented phase by phase against the API contract: tabbed Classes / Create Class / My Applications screens, an Application detail view, 5-second polling for seat counts and applications, a 1-second hold countdown, persisted student identity, and a per-user Backend URL override. The app, its Vite config, and the production Node server were migrated fully to TypeScript, with Vitest coverage of the main flows.
+
+### AI mistake
+
+- The plan called for a CommonJS server bundle (`server.cjs`), but `server.ts` uses top-level `await`, which CommonJS cannot execute.
+- The API client mapped a bare `500` to the friendly server message, while other `5xx` responses (for example a proxy's `502`) fell through to the generic "request failed" text.
+- A `2xx` response whose body could not be parsed was reported as "the server is not reachable", which blamed the network for a server problem.
+
+### Solution
+
+- The server is bundled as ESM (`dist-server/server.mjs`) with esbuild, and the Dockerfile and `package.json` script were updated to match.
+- Any `5xx` now shows "Something went wrong on the server. Please try again.", and an unparseable success body shows the same server message.
+- Every fetch path was audited so failures render on screen; the active view is wrapped in an error boundary with **Try again**, and a failed application load can be retried in place.

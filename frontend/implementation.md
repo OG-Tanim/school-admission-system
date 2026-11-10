@@ -430,9 +430,11 @@ Input: `holdId` (from Apply or a My Applications row), `studentId`.
 - [x] **6.4** After Confirm/Cancel/Create, call the relevant `refresh()` so the list
   and seat counts update before the next poll.
 
-- [ ] **6.5** Gate: with the Docker stack up, hold a seat in one tab and confirm it in
+- [x] **6.5** Gate: with the Docker stack up, hold a seat in one tab and confirm it in
   another; the Class List's **Held/Confirmed/Available** numbers change within ~5 s
-  **without a page reload**.
+  **without a page reload**. Verified with two headless Chrome tabs against the Docker
+  stack: the second tab confirmed the hold and the first tab moved to `3|0|1|2` without
+  a reload.
 
 ---
 
@@ -491,48 +493,49 @@ Input: `holdId` (from Apply or a My Applications row), `studentId`.
 
 ## Phase 9 — Build, server, and Docker
 
-- [ ] **9.1** `vite.config.ts`: unchanged behaviour — `/config.js` still serves
+- [x] **9.1** `vite.config.ts`: unchanged behaviour — `/config.js` still serves
   `window.__APP_CONFIG__ = { apiUrl: <default> }` read once at startup from
   `config/api-url.env` (fallback `API_URL`, then `http://localhost:8080`).
 
-- [ ] **9.2** `server.ts`: port `PORT ?? 80`, static root `STATIC_ROOT ?? /app/dist`,
+- [x] **9.2** `server.ts`: port `PORT ?? 80`, static root `STATIC_ROOT ?? /app/dist`,
   config file `CONFIG_FILE ?? /config/api-url.env`. Keep `/healthz`, `/config.js`,
   SPA fallback to `index.html` for HTML GETs.
 
-- [ ] **9.3** Compile the server for the runtime image with esbuild:
+- [x] **9.3** Compile the server for the runtime image with esbuild. ESM is required
+  because `server.ts` awaits the config file at top level, which CommonJS cannot run:
 
   ```bash
-  npx esbuild server.ts --bundle --platform=node --target=node20 \
-    --outfile=dist-server/server.cjs --format=cjs
+  npx esbuild server.ts --bundle --platform=node --target=node22 \
+    --outfile=dist-server/server.mjs --format=esm
   ```
 
-  (Bundles `lib/apiUrl.ts` in; no TypeScript at runtime.) Add
-  `"build:server": "esbuild server.ts --bundle --platform=node --target=node20 --outfile=dist-server/server.cjs --format=cjs"`
-  to `package.json`.
+  (Bundles `lib/apiUrl.ts` in; no TypeScript at runtime.) The `build:server` script in
+  `package.json` runs exactly this.
 
-- [ ] **9.4** Update `frontend/Dockerfile`:
+- [x] **9.4** Update `frontend/Dockerfile`:
 
   - Build stage: `npm ci` → `npm run build` → `npm run build:server`.
-  - Runtime stage: copy `dist/` and `dist-server/server.cjs`; **do not** copy
-    `lib/` or `server.ts`; `CMD ["node", "dist-server/server.cjs"]`.
+  - Runtime stage: copy `dist/` and `dist-server/` (only `server.mjs`); **do not**
+    copy `lib/` or `server.ts`; `CMD ["node", "dist-server/server.mjs"]`.
   - Keep `EXPOSE 80`, `PORT=80`, `STATIC_ROOT=/app/dist`, `CONFIG_FILE=/config/api-url.env`.
 
-- [ ] **9.5** Keep `docker-compose.yml` untouched (frontend still `3000:80`, backend
+- [x] **9.5** Keep `docker-compose.yml` untouched (frontend still `3000:80`, backend
   `8080:8080`). Verify `docker compose up --build` serves the UI at
   `http://localhost:3000` and `/config.js` carries the default backend URL.
 
-- [ ] **9.6** Gate: `docker compose down && docker compose up -d --build`; open
+- [x] **9.6** Gate: `docker compose down && docker compose up -d --build`; open
   `http://localhost:3000`; create a class, apply, pay — end to end with no console
-  errors.
+  errors. Driven through the real UI over the Chrome DevTools Protocol: class created,
+  applied, paid, and the application survived a reload with no console errors.
 
 ---
 
 ## Phase 10 — Documentation (short, required by §1.7)
 
-- [ ] **10.1** `README.md`: update the frontend run/test notes (`npm test`), confirm
+- [x] **10.1** `README.md`: update the frontend run/test notes (`npm test`), confirm
   the URLs (`frontend :3000`, `backend :8080`), and mention the TypeScript build.
 
-- [ ] **10.2** `ASSUMPTIONS.md` — add frontend assumptions:
+- [x] **10.2** `ASSUMPTIONS.md` — add frontend assumptions:
 
   - seat counts poll every 5 s; hold countdown ticks every 1 s;
   - the student id is persisted in `localStorage` under `studentId` so applications
@@ -542,26 +545,26 @@ Input: `holdId` (from Apply or a My Applications row), `studentId`.
   - the per-user Backend URL field remains an override of the environment default;
   - TypeScript is used across the app and the Node build/serve files.
 
-- [ ] **10.3** `AI_USAGE.md`: add this step (full-TS migration + UI build) and any
+- [x] **10.3** `AI_USAGE.md`: add this step (full-TS migration + UI build) and any
   corrections the AI made.
 
 ---
 
 ## Definition of done (mirrors §1.5 UI rules)
 
-- [ ] **D1** Every operation — create class, apply, confirm, cancel, view applications
+- [x] **D1** Every operation — create class, apply, confirm, cancel, view applications
   — is possible through the UI; no Postman / DB access required.
-- [ ] **D2** An expiring hold flips to **EXPIRED** and disables **Pay** with no page
+- [x] **D2** An expiring hold flips to **EXPIRED** and disables **Pay** with no page
   reload.
-- [ ] **D3** Class seat counts refresh every ~5 s with no reload.
-- [ ] **D4** After a refresh or a browser reopen, the student still sees their ongoing
+- [x] **D3** Class seat counts refresh every ~5 s with no reload.
+- [x] **D4** After a refresh or a browser reopen, the student still sees their ongoing
   applications (student id persisted; `/me/holds` re-fetched).
-- [ ] **D5** Every error (no seats, expired hold, invalid input, server down) shows
+- [x] **D5** Every error (no seats, expired hold, invalid input, server down) shows
   plain-language text on screen; no blank page, no console-only errors.
-- [ ] **D6** `npm run build`, `npm run lint`, and `npm test` all pass.
-- [ ] **D7** `docker compose up` serves PostgreSQL + backend (`:8080`) + frontend
+- [x] **D6** `npm run build`, `npm run lint`, and `npm test` all pass.
+- [x] **D7** `docker compose up` serves PostgreSQL + backend (`:8080`) + frontend
   (`:3000`) together from a clean checkout.
-- [ ] **D8** The API contract is followed exactly; no specified field is removed or
+- [x] **D8** The API contract is followed exactly; no specified field is removed or
   renamed.
 
 ---
