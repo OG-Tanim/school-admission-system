@@ -3,8 +3,8 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using SchoolAdmission.Api.Common;
 using SchoolAdmission.Api.Data;
-using SchoolAdmission.Api.Endpoints;
 using SchoolAdmission.Api.Models;
 
 namespace SchoolAdmission.Api.Tests;
@@ -512,7 +512,7 @@ public sealed class HoldEndpointsTests : IAsyncLifetime
 
         if (studentId is not null)
         {
-            request.Headers.TryAddWithoutValidation(HoldEndpoints.StudentIdHeader, studentId);
+            request.Headers.TryAddWithoutValidation(StudentId.HeaderName, studentId);
         }
 
         return await _client.SendAsync(request);
@@ -555,7 +555,7 @@ public sealed class HoldEndpointsTests : IAsyncLifetime
 
         if (studentId is not null)
         {
-            request.Headers.TryAddWithoutValidation(HoldEndpoints.StudentIdHeader, studentId);
+            request.Headers.TryAddWithoutValidation(StudentId.HeaderName, studentId);
         }
 
         return await _client.SendAsync(request);
@@ -567,7 +567,7 @@ public sealed class HoldEndpointsTests : IAsyncLifetime
 
         if (studentId is not null)
         {
-            request.Headers.TryAddWithoutValidation(HoldEndpoints.StudentIdHeader, studentId);
+            request.Headers.TryAddWithoutValidation(StudentId.HeaderName, studentId);
         }
 
         return await _client.SendAsync(request);
