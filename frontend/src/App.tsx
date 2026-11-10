@@ -9,6 +9,7 @@ import { MyApplicationsView } from './components/MyApplicationsView'
 import { StudentIdBar } from './components/StudentIdBar'
 import { useClasses } from './hooks/useClasses'
 import { useMyHolds } from './hooks/useMyHolds'
+import { usePageVisible } from './hooks/usePageVisible'
 import { useStudentId } from './hooks/useStudentId'
 
 type Tab = 'classes' | 'create-class' | 'my-applications'
@@ -24,9 +25,15 @@ function App() {
   const [tab, setTab] = useState<Tab>('classes')
   const [active, setActive] = useState<{ holdId: string; className?: string } | null>(null)
   const [viewKey, setViewKey] = useState(0)
+  const pageVisible = usePageVisible()
 
-  const classesState = useClasses()
-  const holdsState = useMyHolds(studentId)
+  // Poll only what the visible screen needs: nothing while a hold is open, and
+  // nothing while the browser tab is in the background.
+  const classesEnabled = pageVisible && active === null && tab === 'classes'
+  const holdsEnabled = pageVisible && active === null && tab === 'my-applications'
+
+  const classesState = useClasses({ enabled: classesEnabled })
+  const holdsState = useMyHolds(studentId, { enabled: holdsEnabled })
 
   function openHold(holdId: string, className: string) {
     setActive({ holdId, className })
