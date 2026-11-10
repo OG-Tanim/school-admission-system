@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using SchoolAdmission.Api.Data;
 using SchoolAdmission.Api.Endpoints;
+using SchoolAdmission.Api.Middleware;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -27,6 +28,13 @@ if (holdDurationSeconds <= 0 || holdDurationSeconds > 86_400)
 
 builder.Services.AddSingleton(new HoldSettings(TimeSpan.FromSeconds(holdDurationSeconds)));
 builder.Services.AddOpenApi();
+
+// Unhandled exceptions must still answer with the shared {"error": "..."} envelope
+// instead of a bare 500 or Problem Details. AddProblemDetails only satisfies the
+// exception handler middleware's fallback requirement; ApiExceptionHandler always
+// handles the exception itself.
+builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy => policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod());
@@ -53,6 +61,10 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors();
+
+// Registered after UseCors so a 500 response still carries the CORS headers the
+// browser needs before it can read the error body.
+app.UseExceptionHandler();
 
 app.MapGet("/", () => Results.Ok(new { name = "School Admission API", status = "ok" }));
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
