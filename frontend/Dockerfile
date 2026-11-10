@@ -22,6 +22,7 @@ ENV NODE_ENV=production \
     CONFIG_FILE=/config/api-url.env
 
 COPY --from=build /app/dist ./dist
+COPY --from=build /app/lib ./lib
 COPY server.mjs ./
 
 EXPOSE 80

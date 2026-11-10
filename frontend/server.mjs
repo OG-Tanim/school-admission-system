@@ -1,11 +1,16 @@
 import { createServer } from 'node:http'
 import { readFile } from 'node:fs/promises'
 import { extname, resolve, sep } from 'node:path'
+import {
+  FALLBACK_API_URL,
+  apiUrlFromEnvFile,
+  isValidApiUrl,
+  normalizeApiUrl,
+} from './lib/apiUrl.js'
 
 const PORT = Number(process.env.PORT ?? 80)
 const STATIC_ROOT = resolve(process.env.STATIC_ROOT ?? '/app/dist')
 const CONFIG_FILE = process.env.CONFIG_FILE ?? '/config/api-url.env'
-const FALLBACK_API_URL = 'http://localhost:8080'
 
 const CONTENT_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -19,30 +24,6 @@ const CONTENT_TYPES = {
   '.ico': 'image/x-icon',
   '.woff2': 'font/woff2',
   '.txt': 'text/plain; charset=utf-8',
-}
-
-function normalizeApiUrl(value) {
-  return String(value ?? '')
-    .trim()
-    .replace(/\/+$/, '')
-}
-
-function isValidApiUrl(value) {
-  try {
-    const { protocol } = new URL(value)
-    return protocol === 'http:' || protocol === 'https:'
-  } catch {
-    return false
-  }
-}
-
-function apiUrlFromEnvFile(contents) {
-  for (const line of contents.split(/\r?\n/)) {
-    const trimmed = line.trim()
-    if (!trimmed.startsWith('API_URL=')) continue
-    return normalizeApiUrl(trimmed.slice('API_URL='.length).replace(/^["']|["']$/g, ''))
-  }
-  return ''
 }
 
 // Startup value: the environment file is the source of truth for every start.

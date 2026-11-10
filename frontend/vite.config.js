@@ -2,33 +2,9 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
+import { FALLBACK_API_URL, apiUrlFromEnvFile, isValidApiUrl } from './lib/apiUrl.js'
 
 const ENV_FILE = fileURLToPath(new URL('../config/api-url.env', import.meta.url))
-const FALLBACK_API_URL = 'http://localhost:8080'
-
-function normalizeApiUrl(value) {
-  return String(value ?? '')
-    .trim()
-    .replace(/\/+$/, '')
-}
-
-function isValidApiUrl(value) {
-  try {
-    const { protocol } = new URL(value)
-    return protocol === 'http:' || protocol === 'https:'
-  } catch {
-    return false
-  }
-}
-
-function apiUrlFromEnvFile(contents) {
-  for (const line of contents.split(/\r?\n/)) {
-    const trimmed = line.trim()
-    if (!trimmed.startsWith('API_URL=')) continue
-    return normalizeApiUrl(trimmed.slice('API_URL='.length).replace(/^["']|["']$/g, ''))
-  }
-  return ''
-}
 
 // Read once when the dev server starts. The environment file is the default;
 // per-user overrides live in the browser and are never written back here.

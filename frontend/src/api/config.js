@@ -1,20 +1,8 @@
-const FALLBACK_API_URL = 'http://localhost:8080'
+import { FALLBACK_API_URL, isValidApiUrl, normalizeApiUrl } from '../../lib/apiUrl.js'
+
+export { isValidApiUrl }
+
 const STORAGE_KEY = 'backendUrl'
-
-export function normalizeApiUrl(value) {
-  return String(value ?? '')
-    .trim()
-    .replace(/\/+$/, '')
-}
-
-export function isValidApiUrl(value) {
-  try {
-    const { protocol } = new URL(value)
-    return protocol === 'http:' || protocol === 'https:'
-  } catch {
-    return false
-  }
-}
 
 // The value the frontend server read from the environment file at startup. It
 // is the default every user starts from; the UI never writes it back.
