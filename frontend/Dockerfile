@@ -8,7 +8,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
 
 COPY . ./
-RUN npm run build
+RUN npm run build && npm run build:server
 
 # ---------- runtime ----------
 # A tiny Node server serves the bundle and /config.js, which it reads from the
@@ -22,8 +22,7 @@ ENV NODE_ENV=production \
     CONFIG_FILE=/config/api-url.env
 
 COPY --from=build /app/dist ./dist
-COPY --from=build /app/lib ./lib
-COPY server.mjs ./
+COPY --from=build /app/dist-server ./dist-server
 
 EXPOSE 80
-CMD ["node", "server.mjs"]
+CMD ["node", "dist-server/server.mjs"]

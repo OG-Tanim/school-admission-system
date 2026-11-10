@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import type { FormEvent } from 'react'
 import './App.css'
 import { getStartupApiUrl, isValidApiUrl, resetApiUrl, setApiUrl } from './api/config'
 import { useBackendUrl } from './hooks/useBackendUrl'
@@ -13,7 +14,7 @@ function App() {
 
   const isOverridden = activeUrl !== startupApiUrl
 
-  function handleSave(event) {
+  function handleSave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
     const trimmed = draftUrl.trim()
@@ -42,7 +43,7 @@ function App() {
       )
     } catch (saveError) {
       setNotice('')
-      setError(saveError.message)
+      setError(saveError instanceof Error ? saveError.message : 'Could not save the backend URL.')
     }
   }
 

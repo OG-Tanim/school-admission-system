@@ -1,4 +1,4 @@
-import { FALLBACK_API_URL, isValidApiUrl, normalizeApiUrl } from '../../lib/apiUrl.js'
+import { FALLBACK_API_URL, isValidApiUrl, normalizeApiUrl } from '../../lib/apiUrl'
 
 export { isValidApiUrl }
 
@@ -8,7 +8,7 @@ const STORAGE_KEY = 'backendUrl'
 // is the default every user starts from; the UI never writes it back.
 const startupApiUrl = normalizeApiUrl(window.__APP_CONFIG__?.apiUrl) || FALLBACK_API_URL
 
-function readStoredOverride() {
+function readStoredOverride(): string | null {
   try {
     const stored = normalizeApiUrl(localStorage.getItem(STORAGE_KEY))
     return stored && isValidApiUrl(stored) ? stored : null
@@ -20,24 +20,24 @@ function readStoredOverride() {
 
 // The URL every request uses right now. Any override lives in this browser
 // only, so one user changing it never affects another user or the container.
-let activeApiUrl = readStoredOverride() ?? startupApiUrl
-const listeners = new Set()
+let activeApiUrl: string = readStoredOverride() ?? startupApiUrl
+const listeners = new Set<() => void>()
 
-export function getStartupApiUrl() {
+export function getStartupApiUrl(): string {
   return startupApiUrl
 }
 
-export function getApiUrl() {
+export function getApiUrl(): string {
   return activeApiUrl
 }
 
-function notify() {
+function notify(): void {
   for (const listener of listeners) {
     listener()
   }
 }
 
-export function setApiUrl(value) {
+export function setApiUrl(value: string): string {
   const apiUrl = normalizeApiUrl(value)
   if (!isValidApiUrl(apiUrl)) {
     throw new Error(
@@ -56,7 +56,7 @@ export function setApiUrl(value) {
   return apiUrl
 }
 
-export function resetApiUrl() {
+export function resetApiUrl(): string {
   activeApiUrl = startupApiUrl
   try {
     localStorage.removeItem(STORAGE_KEY)
@@ -69,7 +69,7 @@ export function resetApiUrl() {
 }
 
 // Lets React re-read the URL whenever it changes, without a page reload.
-export function subscribe(listener) {
+export function subscribe(listener: () => void): () => void {
   listeners.add(listener)
   return () => listeners.delete(listener)
 }

@@ -4,13 +4,13 @@
 
 export const FALLBACK_API_URL = 'http://localhost:8080'
 
-export function normalizeApiUrl(value) {
+export function normalizeApiUrl(value: unknown): string {
   return String(value ?? '')
     .trim()
     .replace(/\/+$/, '')
 }
 
-export function isValidApiUrl(value) {
+export function isValidApiUrl(value: string): boolean {
   try {
     const { protocol } = new URL(value)
     return protocol === 'http:' || protocol === 'https:'
@@ -21,7 +21,7 @@ export function isValidApiUrl(value) {
 
 // Extracts API_URL from the contents of the environment file (the same format
 // docker compose reads). Returns '' when the key is absent.
-export function apiUrlFromEnvFile(contents) {
+export function apiUrlFromEnvFile(contents: string): string {
   for (const line of contents.split(/\r?\n/)) {
     const trimmed = line.trim()
     if (!trimmed.startsWith('API_URL=')) continue
