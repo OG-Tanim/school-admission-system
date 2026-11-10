@@ -41,4 +41,14 @@
 
 - The server is bundled as ESM (`dist-server/server.mjs`) with esbuild, and the Dockerfile and `package.json` script were updated to match.
 - Any `5xx` now shows "Something went wrong on the server. Please try again.", and an unparseable success body shows the same server message.
-- Every fetch path was audited so failures render on screen; the active view is wrapped in an error boundary with **Try again**, and a failed application load can be retried in place.
+## Step - 6
+
+- The single-page tabbed UI was restructured into five role-based hash routes: `#/` (choose admin or student, with the Backend URL field), `#/admin` (create a class plus a read-only list of created classes), `#/student` (seat counts and Apply), `#/application/:holdId` (one application), and `#/student/applications` (all of a student's applications). A tiny dependency-free hash router keeps Back/Forward and deep links working, and the four role screens are code-split with `React.lazy` and `Suspense`. The shared seat table was extracted so the admin (read-only) and student (Apply) views cannot drift apart.
+
+### AI mistake
+
+- The first plan proposed `React.memo` on the shared class table, but its `classes` prop is a fresh array on every 5-second poll, so memoisation would never hit and would only add a shallow-comparison cost.
+
+### Solution
+
+- Memoisation was skipped for the table (it re-renders with fresh polled data anyway); the re-render wins instead come from code-splitting, deriving status during render, and keeping per-row timers inside their own row components. The class-detail `GET /classes/{id}` call is made only on a deep link, because internal navigation carries the class name in the hash query.

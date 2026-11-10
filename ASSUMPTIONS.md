@@ -83,9 +83,12 @@ COMMIT;
 
 ## 6. Frontend behaviour
 
-- **Four screens, one page.** Classes, Create Class, and My Applications are tabs.
-  **Application** is a detail view opened from **Apply** or from a My Applications row;
-  **Back** returns to the tabs.
+- **Five screens, hash routes.** The app opens on a role chooser (`#/`). Choosing
+  **School admin** opens `#/admin`; choosing **Student / guardian** opens `#/student`.
+  **My Applications** (`#/student/applications`) lists the student's applications, and
+  **Application** (`#/application/:holdId`) is a detail view opened from **Apply** or from
+  a My Applications row. Browser Back/Forward and deep links work, and the role screens
+  are code-split with `React.lazy` so a student never downloads the admin form.
 - **Live counts.** The class list and My Applications poll every 5 seconds. A failed poll
   keeps the last good data on screen and shows a banner; the next successful poll clears
   it. The hold countdown ticks every second, so an expiring hold flips to **EXPIRED** and

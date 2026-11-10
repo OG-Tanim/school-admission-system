@@ -42,8 +42,8 @@ the `API_URL` environment variable otherwise. At startup the frontend server rea
 and serves it to the page as `/config.js`. The file is mounted read-only into the
 container and is never written by the app.
 
-The **Backend URL** field on the page overrides that default for the current browser
-only:
+The **Backend URL** field on the landing screen overrides that default for the current
+browser only:
 
 - The new value applies immediately to the next request — no page reload and no
   container restart.
@@ -106,8 +106,17 @@ Vitest renders the app in jsdom with a stubbed `fetch`, so no backend is needed.
 
 ## Status
 
-All eight API endpoints are implemented and covered by backend integration tests.
-The frontend implements every operation — create a class, browse classes with live seat
-counts, apply, pay, cancel, and view applications — as a single page with tabs, served by
-the container at <http://localhost:3000>. `npm test`, `npm run lint`, and `npm run build`
-pass, and the Docker stack serves the full flow end to end.
+All eight API endpoints are implemented and covered by backend integration tests. The
+frontend is a role-based flow served by the container at <http://localhost:3000>:
+
+| Route | Screen |
+|---|---|
+| `#/` | Choose school admin or student, and change the backend URL |
+| `#/admin` | Create a class and see every class already created |
+| `#/student` | Browse classes with live seat counts, enter the birth-registration number, and apply |
+| `#/application/:holdId` | One application: status, countdown, Pay Admission Fee, and Cancel |
+| `#/student/applications` | Every application belonging to the current student |
+
+Each screen is a real hash route, so browser Back/Forward and deep links work, and the
+role screens are code-split with `React.lazy`. `npm test`, `npm run lint`, and
+`npm run build` pass, and the Docker stack serves the full flow end to end.
