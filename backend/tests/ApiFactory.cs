@@ -49,3 +49,14 @@ public sealed class PostgresFixture : IAsyncLifetime
         await _postgres.DisposeAsync();
     }
 }
+
+/// <summary>
+/// One PostgreSQL container for the whole test assembly. The connection string is
+/// passed through a process-wide environment variable, so a single shared fixture
+/// avoids two test classes racing to overwrite it.
+/// </summary>
+[CollectionDefinition("Postgres")]
+public sealed class PostgresCollection : ICollectionFixture<PostgresFixture>
+{
+}
+

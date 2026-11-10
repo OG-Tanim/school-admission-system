@@ -85,6 +85,7 @@ real EF Core migrations, and call the API. Docker must be running. See
 
 ## Status
 
-Class creation, listing, and detail endpoints are implemented and covered by
-integration tests. Seat-hold endpoints, the admission screens, and the remaining
-deliverables are pending; the Docker setup is complete.
+Class creation, listing, and detail endpoints plus seat-hold creation
+(`POST /classes/{classId}/holds`) are implemented and covered by integration tests.
+The remaining hold endpoints, the admission screens, and the other deliverables are
+pending; the Docker setup is complete.

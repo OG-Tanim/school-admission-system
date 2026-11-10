@@ -8,7 +8,8 @@ using SchoolAdmission.Api.Models;
 
 namespace SchoolAdmission.Api.Tests;
 
-public sealed class ClassEndpointsTests : IClassFixture<PostgresFixture>, IAsyncLifetime
+[Collection("Postgres")]
+public sealed class ClassEndpointsTests : IAsyncLifetime
 {
     private const string DuplicateMessage =
         "class name already exists, please create class with a different name";
@@ -42,9 +43,9 @@ public sealed class ClassEndpointsTests : IClassFixture<PostgresFixture>, IAsync
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
 
         var body = await ReadJsonAsync(response);
-        var id = body.GetProperty("id").GetString();
+        var id = body.GetProperty("id").GetGuid();
 
-        Assert.StartsWith("c_", id);
+        Assert.NotEqual(Guid.Empty, id);
         Assert.Equal("Class 6 - Morning Shift", body.GetProperty("name").GetString());
         Assert.Equal(120, body.GetProperty("totalSeats").GetInt32());
         Assert.Equal(3, body.EnumerateObject().Count());
@@ -75,11 +76,11 @@ public sealed class ClassEndpointsTests : IClassFixture<PostgresFixture>, IAsync
     public async Task GetClassById_returns_the_class()
     {
         var created = await CreateClassAsync("Class 7 - Morning Shift", 60);
-        var id = created.GetProperty("id").GetString();
+        var id = created.GetProperty("id").GetGuid();
 
         var body = await _client.GetFromJsonAsync<JsonElement>($"/classes/{id}");
 
-        Assert.Equal(id, body.GetProperty("id").GetString());
+        Assert.Equal(id, body.GetProperty("id").GetGuid());
         Assert.Equal("Class 7 - Morning Shift", body.GetProperty("name").GetString());
         Assert.Equal(60, body.GetProperty("totalSeats").GetInt32());
         Assert.Equal(60, body.GetProperty("availableSeats").GetInt32());
@@ -164,7 +165,7 @@ public sealed class ClassEndpointsTests : IClassFixture<PostgresFixture>, IAsync
     public async Task GetClass_counts_active_holds_and_confirmed_seats_only()
     {
         var created = await CreateClassAsync("Class 9 - Morning Shift", 30);
-        var id = created.GetProperty("id").GetString()!;
+        var id = created.GetProperty("id").GetGuid();
         var now = DateTimeOffset.UtcNow;
 
         using (var scope = _fixture.Factory.Services.CreateScope())

@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using SchoolAdmission.Api.Data;
 using SchoolAdmission.Api.Endpoints;
@@ -10,10 +12,30 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
     ?? "Host=localhost;Port=5432;Database=school_admission;Username=postgres;Password=postgres";
 
 builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
+
+// Seat-hold lifetime. HOLD_DURATION_SECONDS defaults to 600 and is clamped to
+// a sane range so a bad value cannot overflow the expiry timestamp.
+var holdDurationSeconds =
+    int.TryParse(builder.Configuration["HOLD_DURATION_SECONDS"], out var configuredSeconds)
+        ? configuredSeconds
+        : 600;
+
+if (holdDurationSeconds <= 0 || holdDurationSeconds > 86_400)
+{
+    holdDurationSeconds = 600;
+}
+
+builder.Services.AddSingleton(new HoldSettings(TimeSpan.FromSeconds(holdDurationSeconds)));
 builder.Services.AddOpenApi();
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy => policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod());
+});
+
+// Enums in responses must use the API contract casing ("HELD", "CONFIRMED", …).
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseUpper));
 });
 
 var app = builder.Build();
@@ -36,6 +58,7 @@ app.MapGet("/", () => Results.Ok(new { name = "School Admission API", status = "
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
 app.MapClassEndpoints();
+app.MapHoldEndpoints();
 
 app.Run();
 

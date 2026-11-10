@@ -11,6 +11,9 @@ public static class ClassEndpoints
     private const string DuplicateNameMessage =
         "class name already exists, please create class with a different name";
 
+    // PostgreSQL reports the violated constraint/index name on a unique error.
+    private const string ClassesNormalizedNameIndex = "IX_classes_NormalizedName";
+
     public static IEndpointRouteBuilder MapClassEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/classes");
@@ -48,13 +51,25 @@ public static class ClassEndpoints
                 await db.SaveChangesAsync();
             }
             catch (DbUpdateException ex)
-                when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
             {
-                return Results.Conflict(new { error = DuplicateNameMessage });
+                // A race can slip past the AnyAsync check; the unique index is
+                // the source of truth and still maps to the same 409.
+                if (ex.InnerException is PostgresException
+                    { SqlState: PostgresErrorCodes.UniqueViolation } pg
+                    && pg.ConstraintName == ClassesNormalizedNameIndex)
+                {
+                    return Results.Conflict(new { error = DuplicateNameMessage });
+                }
+
+                throw;
             }
 
-            var response = new ClassCreatedResponse(admissionClass.Id, admissionClass.Name, admissionClass.TotalSeats);
-            return Results.Created($"/classes/{admissionClass.Id}", response);
+            var created = new ClassCreatedResponse(
+                admissionClass.Id,
+                admissionClass.Name,
+                admissionClass.TotalSeats);
+
+            return Results.Created($"/classes/{admissionClass.Id}", created);
         });
 
         group.MapGet("", async (AppDbContext db) =>
@@ -77,11 +92,16 @@ public static class ClassEndpoints
 
         group.MapGet("/{classId}", async (string classId, AppDbContext db) =>
         {
+            if (!Guid.TryParse(classId, out var classIdValue))
+            {
+                return Results.NotFound(new { error = "Class not found." });
+            }
+
             var now = DateTimeOffset.UtcNow;
 
             var admissionClass = await db.Classes
                 .AsNoTracking()
-                .Where(x => x.Id == classId)
+                .Where(x => x.Id == classIdValue)
                 .Select(x => new ClassResponse(
                     x.Id,
                     x.Name,
@@ -100,9 +120,9 @@ public static class ClassEndpoints
 
     public sealed record CreateClassRequest(string? Name, int TotalSeats);
 
-    public sealed record ClassCreatedResponse(string Id, string Name, int TotalSeats);
+    public sealed record ClassCreatedResponse(Guid Id, string Name, int TotalSeats);
 
-    public sealed record ClassResponse(string Id, string Name, int TotalSeats, int HeldSeats, int ConfirmedSeats)
+    public sealed record ClassResponse(Guid Id, string Name, int TotalSeats, int HeldSeats, int ConfirmedSeats)
     {
         public int AvailableSeats => TotalSeats - HeldSeats - ConfirmedSeats;
     }

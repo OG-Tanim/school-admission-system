@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using SchoolAdmission.Api.Common;
 using SchoolAdmission.Api.Models;
 
 namespace SchoolAdmission.Api.Data;
@@ -14,7 +13,6 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         modelBuilder.Entity<AdmissionClass>(entity =>
         {
             entity.ToTable("classes");
-            entity.Property(x => x.Id).HasMaxLength(ShortId.MaxLength);
             entity.Property(x => x.Name).HasMaxLength(200).IsRequired();
             entity.Property(x => x.NormalizedName).HasMaxLength(200).IsRequired();
             entity.HasIndex(x => x.NormalizedName).IsUnique();
@@ -23,10 +21,14 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         modelBuilder.Entity<SeatHold>(entity =>
         {
             entity.ToTable("holds");
-            entity.Property(x => x.Id).HasMaxLength(ShortId.MaxLength);
-            entity.Property(x => x.ClassId).HasMaxLength(ShortId.MaxLength);
             entity.Property(x => x.StudentId).HasMaxLength(32).IsRequired();
-            entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
+            // Persist the contract casing (HELD/CONFIRMED/EXPIRED/CANCELLED).
+            // Parsing ignores case so any legacy PascalCase rows still load.
+            entity.Property(x => x.Status)
+                .HasConversion(
+                    status => status.ToString().ToUpperInvariant(),
+                    value => Enum.Parse<HoldStatus>(value, ignoreCase: true))
+                .HasMaxLength(20);
             entity.HasIndex(x => x.StudentId);
             entity.HasOne(x => x.AdmissionClass)
                 .WithMany(x => x.Holds)

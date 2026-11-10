@@ -1,11 +1,13 @@
 # Backend Tests
 
-Automated tests live in [`tests/`](tests/) and cover the class endpoints implemented so far.
+Automated tests live in [`tests/`](tests/) and cover the class and seat-hold endpoints
+implemented so far.
 
 - Framework: xUnit 2.9.3
 - API host: `WebApplicationFactory<Program>` (in-memory TestServer, no fixed port)
 - Database: real PostgreSQL 16 container via Testcontainers
-- Test class: [`tests/ClassEndpointsTests.cs`](tests/ClassEndpointsTests.cs)
+- Test classes: [`tests/ClassEndpointsTests.cs`](tests/ClassEndpointsTests.cs),
+  [`tests/HoldEndpointsTests.cs`](tests/HoldEndpointsTests.cs)
 - Fixture/factory: [`tests/ApiFactory.cs`](tests/ApiFactory.cs)
 
 ## Running the tests
@@ -41,10 +43,11 @@ also exercised — not just the application-level duplicate check.
 | `POST /classes` | 14 cases (including theory rows) | Covered |
 | `GET /classes` | 1 case | Covered |
 | `GET /classes/{classId}` | 3 cases | Covered |
+| `POST /classes/{classId}/holds` | 11 cases (including the required concurrency test) | Covered |
 | `GET /` | — | Infrastructure endpoint, no automated test |
 | `GET /health` | — | Infrastructure endpoint, no automated test |
 
-Total: **18 test cases**.
+Total: **29 test cases**.
 
 ## `POST /classes`
 
@@ -53,7 +56,7 @@ Success response is `201 Created` with exactly `id`, `name`, and `totalSeats`, p
 
 | Test | Input | Expected |
 |---|---|---|
-| `CreateClass_returns_201_with_contract_fields` | `{"name":"Class 6 - Morning Shift","totalSeats":120}` | `201`; body has exactly `id`, `name`, `totalSeats`; id starts with `c_`; `Location` matches `/classes/{id}` |
+| `CreateClass_returns_201_with_contract_fields` | `{"name":"Class 6 - Morning Shift","totalSeats":120}` | `201`; body has exactly `id`, `name`, `totalSeats`; `id` is a GUID; `Location` matches `/classes/{id}` |
 | `CreateClass_duplicate_name_returns_409` | Duplicate of an existing name, written as `class 6 - morning shift`, `Class   6   -   Morning Shift`, and `  CLASS 6 - MORNING SHIFT  ` | `409` with `{"error":"class name already exists, please create class with a different name"}` for each variant |
 | `CreateClass_invalid_input_returns_400` | Empty name, whitespace-only name, `totalSeats: 0`, `totalSeats: -1`, missing `name`, missing `totalSeats` | `400` in every case |
 | `CreateClass_name_over_200_chars_returns_400` | 201-character name | `400` |
@@ -75,12 +78,30 @@ Success response is `201 Created` with exactly `id`, `name`, and `totalSeats`, p
 | `GetClassById_unknown_returns_404` | Request `/classes/c_missing01` | `404` with `{"error":"Class not found."}` |
 | `GetClass_counts_active_holds_and_confirmed_seats_only` | Seed three holds: one active `HELD`, one expired `HELD`, one `CONFIRMED`; class has 30 seats | `heldSeats=1`, `confirmedSeats=1`, `availableSeats=28` (expired hold ignored) |
 
+## `POST /classes/{classId}/holds`
+
+The `X-Student-Id` header must be a 17-digit birth-registration number. The handler locks
+the class row inside a short transaction, rejects a second active application from the
+same student in the same class, and rejects the request with `409` when
+`held + confirmed` already equals `totalSeats`. Expiry is lazy, so an expired hold neither
+occupies a seat nor blocks a re-application.
+
+| Test | Setup | Expected |
+|---|---|---|
+| `CreateHold_returns_201_with_contract_fields` | 120-seat class, valid header | `201`; `holdId` is a GUID; body echoes `classId`/`studentId`; `status="HELD"`; `expiresAt` in the future; `Location: /holds/{id}` |
+| `CreateHold_invalid_header_returns_400` | Missing, 16-digit, 18-digit, non-digit header | `400` in every case |
+| `CreateHold_unknown_class_returns_404` | Request `/classes/{random-guid}/holds` | `404` with `{"error":"Class not found."}` |
+| `CreateHold_when_no_seats_returns_409` | 1-seat class already held by another student | `409` "No seats available in this class."; class shows `heldSeats=1`, `availableSeats=0` |
+| `CreateHold_same_student_same_class_twice_returns_409` | Same student applies twice | `409`; exactly one `HELD` row for that student and class |
+| `CreateHold_same_student_different_classes_succeeds` | Same student applies to two classes | `201` for each |
+| `CreateHold_after_expiry_releases_seat_and_ignores_r3` | Expired `HELD` seeded for the same student | Expired hold frees the seat and does not block re-application |
+| `Concurrent_holds_never_exceed_total_seats` | 5-seat class, 30 simultaneous distinct students | Exactly 5 × `201`, 25 × `409`; `held + confirmed <= 5` |
+
 ## Not covered yet
 
 - `GET /` and `GET /health` are infrastructure endpoints outside the assignment API and
   have no automated tests.
-- Hold endpoints (`POST /classes/{classId}/holds`, `GET /holds/{holdId}`,
-  `POST /holds/{holdId}/confirm`, `DELETE /holds/{holdId}`, `GET /me/holds`) are not
-  implemented yet; their tests — including the required seat-concurrency test — will be
-  added in the next step.
+- Remaining hold endpoints (`GET /holds/{holdId}`, `POST /holds/{holdId}/confirm`,
+  `DELETE /holds/{holdId}`, `GET /me/holds`) are not implemented yet; their tests will be
+  added next.
 - No frontend tests exist yet.
