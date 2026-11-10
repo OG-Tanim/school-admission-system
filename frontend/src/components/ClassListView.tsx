@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { createHold } from '../api/client'
 import type { ClassSummary } from '../api/types'
+import { ClassTable } from './ClassTable'
 import { ErrorBanner } from './ErrorBanner'
 
 export interface ClassListViewProps {
@@ -10,7 +11,7 @@ export interface ClassListViewProps {
   studentId: string
   canApply: boolean
   onHoldCreated: (holdId: string, className: string) => void
-  onGoToCreate: () => void
+  onGoToCreate?: () => void
 }
 
 export function ClassListView({
@@ -54,9 +55,11 @@ export function ClassListView({
     return (
       <div>
         <p>No classes have been created yet.</p>
-        <button type="button" className="primary-button" onClick={onGoToCreate}>
-          Create a class
-        </button>
+        {onGoToCreate && (
+          <button type="button" className="primary-button" onClick={onGoToCreate}>
+            Create a class
+          </button>
+        )}
       </div>
     )
   }
@@ -69,52 +72,32 @@ export function ClassListView({
           Enter your 17-digit birth-registration number above to apply.
         </p>
       )}
-      <table className="class-table">
-        <thead>
-          <tr>
-            <th scope="col">Class</th>
-            <th scope="col">Total</th>
-            <th scope="col">Held</th>
-            <th scope="col">Confirmed</th>
-            <th scope="col">Available</th>
-            <th scope="col">
-              <span className="visually-hidden">Actions</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {classes.map((admissionClass) => {
-            const busy = pendingClassId === admissionClass.id
-            const disabled = !canApply || admissionClass.availableSeats <= 0 || busy
+      <ClassTable
+        classes={classes}
+        renderAction={(admissionClass) => {
+          const busy = pendingClassId === admissionClass.id
+          const disabled = !canApply || admissionClass.availableSeats <= 0 || busy
 
-            return (
-              <tr key={admissionClass.id}>
-                <td>{admissionClass.name}</td>
-                <td>{admissionClass.totalSeats}</td>
-                <td>{admissionClass.heldSeats}</td>
-                <td>{admissionClass.confirmedSeats}</td>
-                <td>{admissionClass.availableSeats}</td>
-                <td>
-                  <button
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => {
-                      void handleApply(admissionClass)
-                    }}
-                  >
-                    {busy ? 'Applying…' : 'Apply'}
-                  </button>
-                  {rowError?.classId === admissionClass.id && (
-                    <p className="field-error" role="alert">
-                      {rowError.message}
-                    </p>
-                  )}
-                </td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
+          return (
+            <>
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() => {
+                  void handleApply(admissionClass)
+                }}
+              >
+                {busy ? 'Applying…' : 'Apply'}
+              </button>
+              {rowError?.classId === admissionClass.id && (
+                <p className="field-error" role="alert">
+                  {rowError.message}
+                </p>
+              )}
+            </>
+          )
+        }}
+      />
     </div>
   )
 }
