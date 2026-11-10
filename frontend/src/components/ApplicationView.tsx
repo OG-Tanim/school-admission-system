@@ -98,9 +98,21 @@ export function ApplicationView({
       <section className="view" aria-label="Application">
         <h2>Application</h2>
         <ErrorBanner message={error || 'Could not load this application.'} />
-        <button type="button" className="link-button" onClick={onBack}>
-          Back
-        </button>
+        <div className="actions">
+          <button
+            type="button"
+            disabled={loading}
+            onClick={() => {
+              setLoading(true)
+              void load()
+            }}
+          >
+            {loading ? 'Trying…' : 'Try again'}
+          </button>
+          <button type="button" className="secondary" onClick={onBack}>
+            Back
+          </button>
+        </div>
       </section>
     )
   }

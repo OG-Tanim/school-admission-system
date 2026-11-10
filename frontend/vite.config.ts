@@ -44,5 +44,7 @@ export default defineConfig({
   plugins: [react(), runtimeConfigPlugin()],
   test: {
     environment: 'jsdom',
+    globals: true,
+    setupFiles: ['./src/test/setup.ts'],
   },
 })

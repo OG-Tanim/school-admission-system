@@ -75,6 +75,8 @@ it does in Docker and applies immediately without restarting `npm run dev`.
 
 ## Tests
 
+Backend:
+
 ```bash
 dotnet test backend/tests/SchoolAdmission.Api.Tests.csproj
 ```
@@ -82,6 +84,15 @@ dotnet test backend/tests/SchoolAdmission.Api.Tests.csproj
 The tests start a disposable PostgreSQL 16 container with Testcontainers, apply the
 real EF Core migrations, and call the API. Docker must be running. See
 [test.md](backend/test.md) for endpoint-by-endpoint coverage.
+
+Frontend:
+
+```bash
+cd frontend
+npm test
+```
+
+Vitest renders the app in jsdom with a stubbed `fetch`, so no backend is needed.
 
 ## Status
 

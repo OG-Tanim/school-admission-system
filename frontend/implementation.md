@@ -438,50 +438,54 @@ Input: `holdId` (from Apply or a My Applications row), `studentId`.
 
 ## Phase 7 — Error handling polish (UI rule 5)
 
-- [ ] **7.1** `src/components/ErrorBanner.tsx`: `role="alert"`, message + optional
+- [x] **7.1** `src/components/ErrorBanner.tsx`: `role="alert"`, message + optional
   dismiss. Used by every view.
-- [ ] **7.2** Audit every fetch path — create class, list classes, apply, hold status,
+- [x] **7.2** Audit every fetch path — create class, list classes, apply, hold status,
   confirm, cancel, my holds — for:
   - network/server down → "The server is not reachable. Check the backend URL and try
     again." (never console-only);
   - `4xx` → backend `error` text when present, else the status fallback;
-  - unexpected `5xx` → "Something went wrong on the server. Please try again."
-- [ ] **7.3** Never render an unhandled exception into a blank page: wrap the active
+  - any `5xx` → "Something went wrong on the server. Please try again."
+  - A `2xx` with an unparseable body also reports the server message.
+- [x] **7.3** Never render an unhandled exception into a blank page: wrap the active
   view in a minimal error boundary (`src/components/ErrorBoundary.tsx`) that shows a
-  readable fallback with a "Try again" that resets state.
-- [ ] **7.4** Gate: stop the backend container; each screen shows the unreachable
-  banner and recovers when the backend returns.
+  readable fallback with a "Try again" that resets state. The application view also
+  retries a failed hold load in place.
+- [x] **7.4** Gate: stop the backend container; each screen shows the unreachable
+  banner and recovers when the backend returns. Verified in headless Chrome against
+  `npm run dev` (banner while stopped, class rows after restart) and by the offline
+  test covering Classes, Create Class, and My Applications.
 
 ---
 
 ## Phase 8 — Frontend tests (bonus, §1.6)
 
-- [ ] **8.1** Add `vitest.config.ts` (or a `test` block in `vite.config.ts`):
+- [x] **8.1** Add `vitest.config.ts` (or a `test` block in `vite.config.ts`):
   `environment: 'jsdom'`, `globals: true`, setup file `src/test/setup.ts` importing
   `@testing-library/jest-dom`.
-- [ ] **8.2** Add `src/test/setup.ts` (jest-dom matchers) and a `renderApp` helper
+- [x] **8.2** Add `src/test/setup.ts` (jest-dom matchers) and a `renderApp` helper
   that stubs `window.__APP_CONFIG__` and clears `localStorage` between tests.
-- [ ] **8.3** Mock the network with `vi.stubGlobal('fetch', vi.fn())` returning the
+- [x] **8.3** Mock the network with `vi.stubGlobal('fetch', vi.fn())` returning the
   contract shapes (no live backend in unit tests).
 
   Minimum tests:
 
-  - [ ] **CreateClass**: valid submit calls `POST /classes` with the right body and
+  - [x] **CreateClass**: valid submit calls `POST /classes` with the right body and
     shows the success notice; duplicate `409` shows the backend message.
-  - [ ] **ClassList**: renders total/held/confirmed/available; Apply disabled at
+  - [x] **ClassList**: renders total/held/confirmed/available; Apply disabled at
     `availableSeats === 0`; Apply disabled without a valid student id.
-  - [ ] **Apply**: click Apply → `POST /classes/{id}/holds` with `X-Student-Id` →
+  - [x] **Apply**: click Apply → `POST /classes/{id}/holds` with `X-Student-Id` →
     Application view opens with the new `holdId`.
-  - [ ] **Application expiry**: with a `HELD` hold whose `expiresAt` is already past,
+  - [x] **Application expiry**: with a `HELD` hold whose `expiresAt` is already past,
     the badge shows **EXPIRED** and **Pay** is disabled without reload.
-  - [ ] **Confirm/Cancel**: click confirm → `POST …/confirm` and status becomes
+  - [x] **Confirm/Cancel**: click confirm → `POST …/confirm` and status becomes
     `CONFIRMED`; cancel → `DELETE` and status becomes `CANCELLED`.
-  - [ ] **Persistence**: with `localStorage.studentId` preset, mount → `GET /me/holds`
+  - [x] **Persistence**: with `localStorage.studentId` preset, mount → `GET /me/holds`
     is called with the `X-Student-Id` header and rows render.
-  - [ ] **Network error**: fetch rejects → a readable banner appears (no crash, no
+  - [x] **Network error**: fetch rejects → a readable banner appears (no crash, no
     console-only error).
 
-- [ ] **8.4** `npm test` green; document the command in `README.md`.
+- [x] **8.4** `npm test` green (15 tests in 4 files); documented in `README.md`.
 
 ---
 

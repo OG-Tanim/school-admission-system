@@ -9,6 +9,7 @@ import type {
 } from './types'
 
 const NETWORK_ERROR = 'The server is not reachable. Check the backend URL and try again.'
+const SERVER_ERROR = 'Something went wrong on the server. Please try again.'
 
 // Error shape the UI can rely on: a plain-language message plus the HTTP status
 // (or null when the failure was at the transport level).
@@ -23,6 +24,11 @@ export class ApiError extends Error {
 }
 
 function statusFallback(status: number): string {
+  // Any 5xx (including gateway errors) is the server's problem, not the input's.
+  if (status >= 500) {
+    return SERVER_ERROR
+  }
+
   switch (status) {
     case 400:
       return 'The request was not valid. Please check the input and try again.'
@@ -32,8 +38,6 @@ function statusFallback(status: number): string {
       return 'The requested item was not found.'
     case 409:
       return 'The request could not be completed because the class is no longer available.'
-    case 500:
-      return 'Something went wrong on the server. Please try again.'
     default:
       return 'The request failed. Please try again.'
   }
@@ -89,7 +93,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     payload = await response.json()
   } catch {
     if (response.ok) {
-      throw new ApiError(NETWORK_ERROR, null)
+      throw new ApiError(SERVER_ERROR, response.status)
     }
     throw new ApiError(statusFallback(response.status), response.status)
   }
