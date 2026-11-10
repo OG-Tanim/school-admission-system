@@ -178,7 +178,7 @@ incremental commits, not one big final commit).
 
 ## Phase 2 — API client & contract types
 
-- [ ] **2.1** Create `src/api/types.ts` mirroring the contract **field names exactly**
+- [x] **2.1** Create `src/api/types.ts` mirroring the contract **field names exactly**
   (the automated API tests depend on the contract; the UI must not depend on extra
   fields):
 
@@ -229,7 +229,7 @@ incremental commits, not one big final commit).
   }
   ```
 
-- [ ] **2.2** Create `src/api/client.ts`. One `request` function plus typed wrappers:
+- [x] **2.2** Create `src/api/client.ts`. One `request` function plus typed wrappers:
 
   ```ts
   export class ApiError extends Error {
@@ -265,11 +265,11 @@ incremental commits, not one big final commit).
 
   `cancelHold` treats `204` as success (no body to parse).
 
-- [ ] **2.3** Unit-test the client's error mapping (see Phase 8) — at minimum:
+- [x] **2.3** Unit-test the client's error mapping (see Phase 8) — at minimum:
   `409` surfaces the backend `error`; a network failure yields the unreachable
   message; `204` from cancel does not throw.
 
-- [ ] **2.4** Gate: `npx tsc -b` passes; no screen code yet.
+- [x] **2.4** Gate: `npx tsc -b` passes; no screen code yet.
 
 ---
 

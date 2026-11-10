@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import react from '@vitejs/plugin-react'
@@ -41,4 +42,7 @@ function runtimeConfigPlugin(): Plugin {
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), runtimeConfigPlugin()],
+  test: {
+    environment: 'jsdom',
+  },
 })
