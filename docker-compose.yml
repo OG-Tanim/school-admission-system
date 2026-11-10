@@ -33,9 +33,12 @@ services:
       context: ./backend
     environment:
       ASPNETCORE_ENVIRONMENT: Production
-      # The database connection is configurable through this environment variable.
+      # The database connection is configurable through the environment variable
+      # ConnectionStrings__DefaultConnection (the .NET convention for
+      # "ConnectionStrings:DefaultConnection"). When unset, it falls back to an
+      # in-network connection assembled from the POSTGRES_* values.
       ConnectionStrings__DefaultConnection: >-
-        Host=db;Port=5432;Database=${POSTGRES_DB:-school_admission};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres}
+        ${ConnectionStrings__DefaultConnection:-Host=db;Port=5432;Database=${POSTGRES_DB:-school_admission};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres}}
       # Apply EF Core migrations on startup (waits for PostgreSQL to accept connections).
       Database__MigrateOnStartup: "true"
       HOLD_DURATION_SECONDS: ${HOLD_DURATION_SECONDS:-600}

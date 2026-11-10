@@ -18,8 +18,13 @@ docker compose up --build
 The stack needs no local configuration: `docker-compose.yml` carries working defaults.
 Optional overrides (`API_URL`, `HOLD_DURATION_SECONDS`, `POSTGRES_*`) can be placed in a
 root `.env` file — copy [.env.example](.env.example). Real `.env` files are git-ignored;
-only the template is tracked. The API applies the EF Core migrations on startup, after
-waiting for PostgreSQL to accept connections.
+only the template is tracked.
+
+The database connection is configurable through the `ConnectionStrings__DefaultConnection`
+environment variable (the .NET convention for `ConnectionStrings:DefaultConnection`).
+When unset, the backend uses an in-network connection assembled from `POSTGRES_*`. The
+API applies the EF Core migrations on startup, after waiting for PostgreSQL to accept
+connections.
 
 ### Data persistence
 
