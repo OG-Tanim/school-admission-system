@@ -66,7 +66,7 @@ function App() {
         <h1>School Admission System</h1>
         {role && <span className="role-badge">{role}</span>}
         {route.path !== '/' && (
-          <button type="button" className="link-button" onClick={() => navigate('/')}>
+          <button type="button" className="nav-link" onClick={() => navigate('/')}>
             Home / change role
           </button>
         )}

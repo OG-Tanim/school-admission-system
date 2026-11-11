@@ -113,10 +113,13 @@ export function ApplicationView({
   if (loading && status === null) {
     return (
       <section className="view" aria-label="Application">
+        <div className="view-header">
+          <h2>Application</h2>
+          <button type="button" className="nav-link" onClick={onBack}>
+            Back
+          </button>
+        </div>
         <p className="hint">Loading application…</p>
-        <button type="button" className="link-button" onClick={onBack}>
-          Back
-        </button>
       </section>
     )
   }
@@ -124,7 +127,12 @@ export function ApplicationView({
   if (status === null) {
     return (
       <section className="view" aria-label="Application">
-        <h2>Application</h2>
+        <div className="view-header">
+          <h2>Application</h2>
+          <button type="button" className="nav-link" onClick={onBack}>
+            Back
+          </button>
+        </div>
         <ErrorBanner message={error || 'Could not load this application.'} />
         <div className="actions">
           <button
@@ -137,9 +145,6 @@ export function ApplicationView({
           >
             {loading ? 'Trying…' : 'Try again'}
           </button>
-          <button type="button" className="secondary" onClick={onBack}>
-            Back
-          </button>
         </div>
       </section>
     )
@@ -151,7 +156,7 @@ export function ApplicationView({
     <section className="view" aria-label="Application">
       <div className="view-header">
         <h2>Application</h2>
-        <button type="button" className="link-button" onClick={onBack}>
+        <button type="button" className="nav-link" onClick={onBack}>
           Back
         </button>
       </div>

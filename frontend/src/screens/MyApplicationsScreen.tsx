@@ -13,7 +13,7 @@ export default function MyApplicationsScreen() {
     <section className="view" aria-label="My applications">
       <div className="view-header">
         <h2>My applications</h2>
-        <button type="button" className="link-button" onClick={() => navigate('/student')}>
+        <button type="button" className="nav-link" onClick={() => navigate('/student')}>
           Back to classes
         </button>
       </div>

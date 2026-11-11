@@ -70,8 +70,7 @@ export function BackendUrlField() {
         <button type="submit">Apply</button>
       </div>
       <p className="api-config-hint">
-        In use: <code>{activeUrl}</code> · environment default:{' '}
-        <code>{startupApiUrl}</code>
+        In use: <code>{activeUrl}</code>
       </p>
       {isOverridden && (
         <p className="api-config-hint">
