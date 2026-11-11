@@ -7,7 +7,8 @@ cancel endpoints implemented so far.
 - API host: `WebApplicationFactory<Program>` (in-memory TestServer, no fixed port)
 - Database: real PostgreSQL 16 container via Testcontainers
 - Test classes: [`tests/ClassEndpointsTests.cs`](tests/ClassEndpointsTests.cs),
-  [`tests/HoldEndpointsTests.cs`](tests/HoldEndpointsTests.cs)
+  [`tests/HoldEndpointsTests.cs`](tests/HoldEndpointsTests.cs),
+  [`tests/NameNormalizerTests.cs`](tests/NameNormalizerTests.cs)
 - Fixture/factory: [`tests/ApiFactory.cs`](tests/ApiFactory.cs)
 
 ## Running the tests
@@ -40,7 +41,7 @@ also exercised — not just the application-level duplicate check.
 
 | Endpoint | Tests | Result |
 |---|---|---|
-| `POST /classes` | 14 cases (including theory rows) | Covered |
+| `POST /classes` | 17 cases (including theory rows) | Covered |
 | `GET /classes` | 1 case | Covered |
 | `GET /classes/{classId}` | 3 cases | Covered |
 | `POST /classes/{classId}/holds` | 11 cases (including the required concurrency test) | Covered |
@@ -51,7 +52,8 @@ also exercised — not just the application-level duplicate check.
 | `GET /` | — | Infrastructure endpoint, no automated test |
 | `GET /health` | — | Infrastructure endpoint, no automated test |
 
-Total: **53 test cases**.
+Total: **56 endpoint test cases**, plus **8 normalization cases** in
+[`tests/NameNormalizerTests.cs`](tests/NameNormalizerTests.cs).
 
 ## `POST /classes`
 
@@ -61,7 +63,7 @@ Success response is `201 Created` with exactly `id`, `name`, and `totalSeats`, p
 | Test | Input | Expected |
 |---|---|---|
 | `CreateClass_returns_201_with_contract_fields` | `{"name":"Class 6 - Morning Shift","totalSeats":120}` | `201`; body has exactly `id`, `name`, `totalSeats`; `id` is a GUID; `Location` matches `/classes/{id}` |
-| `CreateClass_duplicate_name_returns_409` | Duplicate of an existing name, written as `class 6 - morning shift`, `Class   6   -   Morning Shift`, and `  CLASS 6 - MORNING SHIFT  ` | `409` with `{"error":"class name already exists, please create class with a different name"}` for each variant |
+| `CreateClass_duplicate_name_returns_409` | Duplicate of an existing name, written as `class 6 - morning shift`, `Class   6   -   Morning Shift`, `  CLASS 6 - MORNING SHIFT  `, `Class 6- Morning Shift`, `Class 6-Morning Shift`, and `Class   6-   Morning Shift` | `409` with `{"error":"class name already exists, please create class with a different name"}` for each variant |
 | `CreateClass_invalid_input_returns_400` | Empty name, whitespace-only name, `totalSeats: 0`, `totalSeats: -1`, missing `name`, missing `totalSeats` | `400` in every case |
 | `CreateClass_name_over_200_chars_returns_400` | 201-character name | `400` |
 | `CreateClass_malformed_json_returns_400` | Truncated JSON body | `400` |

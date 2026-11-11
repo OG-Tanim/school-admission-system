@@ -5,6 +5,8 @@
 There cannot be duplicate class names in the application. Allowing two classes with the
 same name would create confusion among students trying to enroll in a particular class,
 since the name is the only thing that distinguishes one class from another in the UI.
+Names are compared ignoring case, repeated spaces, and spaces around punctuation, so
+`Class 6 - Morning Shift` and `Class 6- Morning Shift` are the same class.
 
 ## 2. A backend-URL change in the UI applies to that user only
 

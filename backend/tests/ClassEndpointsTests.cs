@@ -100,6 +100,9 @@ public sealed class ClassEndpointsTests : IAsyncLifetime
     [InlineData("class 6 - morning shift")]
     [InlineData("Class   6   -   Morning Shift")]
     [InlineData("  CLASS 6 - MORNING SHIFT  ")]
+    [InlineData("Class 6- Morning Shift")]
+    [InlineData("Class 6-Morning Shift")]
+    [InlineData("Class   6-   Morning Shift")]
     public async Task CreateClass_duplicate_name_returns_409(string duplicateName)
     {
         await CreateClassAsync("Class 6 - Morning Shift", 120);
