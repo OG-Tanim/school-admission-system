@@ -1,13 +1,6 @@
 {
   "version": 1,
   "skills": {
-    "convert-blazor-server-to-webapp": {
-      "source": "dotnet/skills",
-      "ref": "main",
-      "sourceType": "github",
-      "skillPath": "plugins/dotnet-aspnetcore/skills/convert-blazor-server-to-webapp/SKILL.md",
-      "computedHash": "79003091f1aea5ee2527d367cb5e0d7bd0fa4bf4fd2992be261050e7667ab8f2"
-    },
     "dotnet-webapi": {
       "source": "dotnet/skills",
       "ref": "main",
