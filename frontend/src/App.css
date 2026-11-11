@@ -55,6 +55,7 @@ h1 {
   border: 1px solid #d1d5db;
   border-radius: 6px;
   font: inherit;
+  margin-bottom: 0.75rem;
 }
 
 .api-config-row button {
@@ -288,6 +289,12 @@ code {
   color: #4b5563;
 }
 
+/* Keep field errors red inside .view, where the rule above would grey them. */
+.view p.field-error {
+  margin: 0.5rem 0 0;
+  color: #b91c1c;
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;
@@ -351,6 +358,14 @@ code {
   font-weight: 600;
 }
 
+/* Row-level errors (a failed Apply) get their own full-width row under the
+   class they belong to, so a long message wraps instead of reflowing the seat
+   columns. */
+.class-detail-row td {
+  padding-top: 0;
+  border-bottom: 0;
+}
+
 .class-table button {
   padding: 0.25rem 0.75rem;
   border: 0;
@@ -387,7 +402,7 @@ code {
   font: inherit;
 }
 
-.create-class button[type='submit'] {
+.create-class button[type="submit"] {
   padding: 0.5rem 1rem;
   border: 0;
   border-radius: 6px;
@@ -397,7 +412,7 @@ code {
   cursor: pointer;
 }
 
-.create-class button[type='submit']:disabled {
+.create-class button[type="submit"]:disabled {
   opacity: 0.6;
   cursor: default;
 }
@@ -497,10 +512,6 @@ code {
   color: #ffffff;
   font: inherit;
   cursor: pointer;
-}
-
-.actions button.secondary {
-  background: #4b5563;
 }
 
 .actions button:disabled {

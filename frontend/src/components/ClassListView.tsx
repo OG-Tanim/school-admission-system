@@ -33,10 +33,10 @@ export function ClassListView({
     try {
       const hold = await createHold(admissionClass.id, studentId)
       onHoldCreated(hold.holdId, admissionClass.name)
-    } catch (applyError) {
+    } catch (error) {
       setRowError({
         classId: admissionClass.id,
-        message: applyError instanceof Error ? applyError.message : 'Could not apply.',
+        message: error instanceof Error ? error.message : 'Could not apply.',
       })
     } finally {
       setPendingClassId(null)
@@ -89,14 +89,16 @@ export function ClassListView({
               >
                 {busy ? 'Applying…' : 'Apply'}
               </button>
-              {rowError?.classId === admissionClass.id && (
-                <p className="field-error" role="alert">
-                  {rowError.message}
-                </p>
-              )}
             </>
           )
         }}
+        renderRowDetail={(admissionClass) =>
+          rowError?.classId === admissionClass.id && (
+            <p className="field-error" role="alert">
+              {rowError.message}
+            </p>
+          )
+        }
       />
     </div>
   )

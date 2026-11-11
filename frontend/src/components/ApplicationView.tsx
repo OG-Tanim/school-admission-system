@@ -206,7 +206,6 @@ export function ApplicationView({
         </button>
         <button
           type="button"
-          className="secondary"
           disabled={!canAct}
           onClick={() => {
             void settle('cancel')
